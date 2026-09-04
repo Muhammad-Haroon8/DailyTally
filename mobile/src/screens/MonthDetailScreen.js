@@ -21,6 +21,7 @@ import Card from '../components/Card';
 import PrimaryButton from '../components/PrimaryButton';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
+import SendReportModal from '../components/SendReportModal';
 import { colors, typography, spacing } from '../constants/theme';
 import { getEntriesByCustomer, deleteEntry } from '../api/entryApi';
 
@@ -31,6 +32,20 @@ export default function MonthDetailScreen({ route, navigation }) {
   const [isLoading, setIsLoading] = useState(!initialMonthData);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isReportModalVisible, setIsReportModalVisible] = useState(false);
+
+  // Compute exact date range for this opened month
+  const monthRange = useMemo(() => {
+    const key = monthKey || monthData?.monthKey;
+    if (!key) return null;
+    const [y, m] = key.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    return {
+      start: `${key}-01`,
+      end: `${key}-${String(lastDay).padStart(2, '0')}`,
+      title: `${monthData?.monthLabel || key} Ka Hisab`,
+    };
+  }, [monthKey, monthData]);
 
   const loadMonthData = useCallback(async (isRefresh = false) => {
     try {
@@ -208,8 +223,17 @@ export default function MonthDetailScreen({ route, navigation }) {
       {/* Month Overview Card */}
       <Card style={styles.monthOverviewCard}>
         <View style={styles.overviewTopRow}>
-          <Text style={styles.overviewCustomerName}>{customerName || 'Gahak'}</Text>
-          <Text style={styles.overviewMonthLabel}>{monthData?.monthLabel}</Text>
+          <View style={styles.customerNameWrap}>
+            <Text style={styles.overviewCustomerName}>{customerName || 'Gahak'}</Text>
+            <Text style={styles.overviewMonthLabel}>{monthData?.monthLabel}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.monthReportButton}
+            onPress={() => setIsReportModalVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.monthReportButtonText}>📄 Report Bhejein</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.overviewStatsRow}>
@@ -445,6 +469,15 @@ export default function MonthDetailScreen({ route, navigation }) {
           }
         />
       )}
+
+      {/* Scoped Month Report Modal */}
+      <SendReportModal
+        visible={isReportModalVisible}
+        onClose={() => setIsReportModalVisible(false)}
+        customerId={customerId}
+        customerName={customerName}
+        fixedDateRange={monthRange}
+      />
     </View>
   );
 }
@@ -478,6 +511,10 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     paddingBottom: 8,
   },
+  customerNameWrap: {
+    flex: 1,
+    marginRight: 8,
+  },
   overviewCustomerName: {
     ...typography.h2,
     color: colors.primary,
@@ -486,6 +523,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: colors.textSecondary,
+    marginTop: 2,
+  },
+  monthReportButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  monthReportButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   overviewStatsRow: {
     flexDirection: 'row',

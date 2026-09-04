@@ -19,6 +19,7 @@ import {
 import Card from '../components/Card';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
+import SendReportModal from '../components/SendReportModal';
 import { colors, typography, spacing } from '../constants/theme';
 import { getEntriesByCustomer, deleteEntry } from '../api/entryApi';
 
@@ -39,6 +40,19 @@ export default function WeekDetailScreen({ route, navigation }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isReportModalVisible, setIsReportModalVisible] = useState(false);
+
+  // Compute exact date range for this opened week
+  const weekRange = useMemo(() => {
+    if (!monthKey || !startDay || !endDay) return null;
+    const start = `${monthKey}-${String(startDay).padStart(2, '0')}`;
+    const end = `${monthKey}-${String(endDay).padStart(2, '0')}`;
+    return {
+      start,
+      end,
+      title: `${weekLabel || 'Week'} (${dateRange || ''}) Ka Hisab`,
+    };
+  }, [monthKey, startDay, endDay, weekLabel, dateRange]);
 
   const loadWeekData = useCallback(async (isRefresh = false) => {
     try {
@@ -205,12 +219,21 @@ export default function WeekDetailScreen({ route, navigation }) {
       {/* Weekly Stats Card */}
       <Card style={styles.weekOverviewCard}>
         <View style={styles.overviewTopRow}>
-          <View>
+          <View style={styles.customerNameWrap}>
             <Text style={styles.overviewCustomerName}>{customerName || 'Gahak'}</Text>
             <Text style={styles.overviewWeekSubtitle}>{weekLabel} • {dateRange}</Text>
           </View>
-          <View style={styles.countBadge}>
-            <Text style={styles.countBadgeText}>{weeklyTotals.count} {weeklyTotals.count === 1 ? 'entry' : 'entries'}</Text>
+          <View style={styles.topRightWrap}>
+            <TouchableOpacity
+              style={styles.weekReportButton}
+              onPress={() => setIsReportModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.weekReportButtonText}>📄 Report Bhejein</Text>
+            </TouchableOpacity>
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>{weeklyTotals.count} {weeklyTotals.count === 1 ? 'entry' : 'entries'}</Text>
+            </View>
           </View>
         </View>
 
@@ -366,6 +389,15 @@ export default function WeekDetailScreen({ route, navigation }) {
           }
         />
       )}
+
+      {/* Scoped Weekly Report Modal */}
+      <SendReportModal
+        visible={isReportModalVisible}
+        onClose={() => setIsReportModalVisible(false)}
+        customerId={customerId}
+        customerName={customerName}
+        fixedDateRange={weekRange}
+      />
     </View>
   );
 }
@@ -399,6 +431,25 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     paddingBottom: 8,
   },
+  customerNameWrap: {
+    flex: 1,
+    marginRight: 8,
+  },
+  topRightWrap: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  weekReportButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  weekReportButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   overviewCustomerName: {
     ...typography.h2,
     color: colors.primary,
@@ -411,12 +462,12 @@ const styles = StyleSheet.create({
   },
   countBadge: {
     backgroundColor: colors.primaryLight,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
   countBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: colors.primary,
   },

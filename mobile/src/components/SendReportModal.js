@@ -23,6 +23,7 @@ export default function SendReportModal({
   onClose,
   customerId,
   customerName,
+  fixedDateRange = null, // { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD', title: 'September 2026 Ka Hisab' }
 }) {
   const [rangeType, setRangeType] = useState('month'); // 'week' | 'month' | 'custom'
   const [startDate, setStartDate] = useState(new Date());
@@ -37,6 +38,13 @@ export default function SendReportModal({
 
   // Calculate actual startDate and endDate strings (YYYY-MM-DD)
   const computeDateRange = () => {
+    if (fixedDateRange) {
+      return {
+        start: fixedDateRange.start,
+        end: fixedDateRange.end,
+      };
+    }
+
     const today = new Date();
 
     if (rangeType === 'week') {
@@ -148,59 +156,73 @@ export default function SendReportModal({
             </View>
           ) : null}
 
-          {/* Range Options */}
-          <Text style={styles.sectionLabel}>Hisab Ka Arsa Chunein:</Text>
-
-          {/* Option 1: Is Mahine Ka */}
-          <TouchableOpacity
-            style={[styles.optionCard, rangeType === 'month' && styles.optionCardSelected]}
-            onPress={() => setRangeType('month')}
-            activeOpacity={0.7}
-            disabled={isProcessing}
-          >
-            <View style={styles.optionRadioWrap}>
-              <View style={[styles.radioCircle, rangeType === 'month' && styles.radioCircleSelected]} />
-              <View>
-                <Text style={styles.optionTitle}>Is Mahine Ka Hisab</Text>
-                <Text style={styles.optionDesc}>1st date se le kar aaj tak ka poora hisab</Text>
-              </View>
+          {/* Range Options: if fixedDateRange is provided, display fixed scope; else show selectors */}
+          {fixedDateRange ? (
+            <View style={styles.fixedScopeBanner}>
+              <Text style={styles.fixedScopeTitle}>📋 {fixedDateRange.title || 'Selected Scope'}</Text>
+              <Text style={styles.fixedScopeDates}>
+                Tareekh: {fixedDateRange.start} se {fixedDateRange.end} tak
+              </Text>
+              <Text style={styles.fixedScopeNote}>
+                Sirf is selected arsay ki PDF report generate hogi.
+              </Text>
             </View>
-          </TouchableOpacity>
+          ) : (
+            <>
+              <Text style={styles.sectionLabel}>Hisab Ka Arsa Chunein:</Text>
 
-          {/* Option 2: Is Hafte Ka */}
-          <TouchableOpacity
-            style={[styles.optionCard, rangeType === 'week' && styles.optionCardSelected]}
-            onPress={() => setRangeType('week')}
-            activeOpacity={0.7}
-            disabled={isProcessing}
-          >
-            <View style={styles.optionRadioWrap}>
-              <View style={[styles.radioCircle, rangeType === 'week' && styles.radioCircleSelected]} />
-              <View>
-                <Text style={styles.optionTitle}>Is Hafte Ka Hisab</Text>
-                <Text style={styles.optionDesc}>Monday se le kar aaj tak ka hisab</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
+              {/* Option 1: Is Mahine Ka */}
+              <TouchableOpacity
+                style={[styles.optionCard, rangeType === 'month' && styles.optionCardSelected]}
+                onPress={() => setRangeType('month')}
+                activeOpacity={0.7}
+                disabled={isProcessing}
+              >
+                <View style={styles.optionRadioWrap}>
+                  <View style={[styles.radioCircle, rangeType === 'month' && styles.radioCircleSelected]} />
+                  <View>
+                    <Text style={styles.optionTitle}>Is Mahine Ka Hisab</Text>
+                    <Text style={styles.optionDesc}>1st date se le kar aaj tak ka poora hisab</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
 
-          {/* Option 3: Custom Range */}
-          <TouchableOpacity
-            style={[styles.optionCard, rangeType === 'custom' && styles.optionCardSelected]}
-            onPress={() => setRangeType('custom')}
-            activeOpacity={0.7}
-            disabled={isProcessing}
-          >
-            <View style={styles.optionRadioWrap}>
-              <View style={[styles.radioCircle, rangeType === 'custom' && styles.radioCircleSelected]} />
-              <View>
-                <Text style={styles.optionTitle}>Custom Range (Apni Marzi Ke Din)</Text>
-                <Text style={styles.optionDesc}>Koi bhi do tareekhon ke darmiyan ka hisab</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
+              {/* Option 2: Is Hafte Ka */}
+              <TouchableOpacity
+                style={[styles.optionCard, rangeType === 'week' && styles.optionCardSelected]}
+                onPress={() => setRangeType('week')}
+                activeOpacity={0.7}
+                disabled={isProcessing}
+              >
+                <View style={styles.optionRadioWrap}>
+                  <View style={[styles.radioCircle, rangeType === 'week' && styles.radioCircleSelected]} />
+                  <View>
+                    <Text style={styles.optionTitle}>Is Hafte Ka Hisab</Text>
+                    <Text style={styles.optionDesc}>Monday se le kar aaj tak ka hisab</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
 
-          {/* Custom Date Pickers */}
-          {rangeType === 'custom' && (
+              {/* Option 3: Custom Range */}
+              <TouchableOpacity
+                style={[styles.optionCard, rangeType === 'custom' && styles.optionCardSelected]}
+                onPress={() => setRangeType('custom')}
+                activeOpacity={0.7}
+                disabled={isProcessing}
+              >
+                <View style={styles.optionRadioWrap}>
+                  <View style={[styles.radioCircle, rangeType === 'custom' && styles.radioCircleSelected]} />
+                  <View>
+                    <Text style={styles.optionTitle}>Custom Range (Apni Marzi Ke Din)</Text>
+                    <Text style={styles.optionDesc}>Koi bhi do tareekhon ke darmiyan ka hisab</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {/* Custom Date Pickers (only if not fixedDateRange and custom is selected) */}
+          {!fixedDateRange && rangeType === 'custom' && (
             <View style={styles.customDateContainer}>
               <View style={styles.datePickerRow}>
                 <View style={styles.pickerBox}>
@@ -347,6 +369,31 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontSize: 12,
     textAlign: 'center',
+  },
+  fixedScopeBanner: {
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: '#BFE7DB',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: spacing.md,
+  },
+  fixedScopeTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  fixedScopeDates: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  fixedScopeNote: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
   },
   sectionLabel: {
     fontSize: 13,
