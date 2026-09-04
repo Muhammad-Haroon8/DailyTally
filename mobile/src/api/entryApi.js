@@ -22,9 +22,9 @@ export const createEntry = async (payload) => {
 };
 
 /**
- * Fetches all entries and current balance for a customer
+ * Fetches entries grouped by month, raw entries, and current balance for a customer
  * @param {string} customerId
- * @returns {Promise<{ customer: Object, entries: Array }>}
+ * @returns {Promise<{ customer: Object, months: Array, entries: Array }>}
  */
 export const getEntriesByCustomer = async (customerId) => {
   try {

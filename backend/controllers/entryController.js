@@ -147,7 +147,9 @@ const createEntry = async (req, res) => {
 };
 
 /**
- * Returns all entries for a specific customer, sorted newest first
+ * Returns all entries for a specific customer, grouped by month with running opening and closing balances.
+ * Sorted chronologically for balance calculation, then grouped and returned newest-month-first.
+ * Empty months with 0 transactions are skipped entirely.
  * GET /api/customers/:customerId/entries
  */
 const getEntriesByCustomer = async (req, res) => {
@@ -164,21 +166,88 @@ const getEntriesByCustomer = async (req, res) => {
       return res.status(404).json({ error: 'Customer not found or unauthorized' });
     }
 
-    const entries = await Entry.find({ customerId: customer._id }).sort({
-      entryDate: -1,
-      createdAt: -1,
+    // Fetch all entries for this customer in chronological order (oldest first)
+    // to accurately compute cumulative running balances across months
+    const allEntries = await Entry.find({ customerId: customer._id }).sort({
+      entryDate: 1,
+      createdAt: 1,
     });
 
-    const balance = await getCustomerBalance(customer._id);
+    // 1. Group entries chronologically by month key "YYYY-MM"
+    const monthMap = new Map();
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    allEntries.forEach((entry) => {
+      const d = new Date(entry.entryDate);
+      const year = d.getFullYear();
+      const monthNum = d.getMonth(); // 0-indexed
+      const monthKey = `${year}-${String(monthNum + 1).padStart(2, '0')}`;
+
+      if (!monthMap.has(monthKey)) {
+        monthMap.set(monthKey, {
+          monthKey,
+          year,
+          monthIndex: monthNum,
+          monthLabel: `${monthNames[monthNum]} ${year}`,
+          entries: [],
+          monthNet: 0,
+        });
+      }
+
+      const monthGroup = monthMap.get(monthKey);
+      monthGroup.entries.push(entry);
+
+      if (entry.type === 'item') {
+        monthGroup.monthNet += entry.amount;
+      } else {
+        monthGroup.monthNet -= entry.amount;
+      }
+    });
+
+    // 2. Sort months chronologically (oldest to newest) to chain opening -> closing balances
+    const chronologicalMonths = Array.from(monthMap.values()).sort((a, b) =>
+      a.monthKey.localeCompare(b.monthKey)
+    );
+
+    let runningBalance = 0;
+    const processedMonths = chronologicalMonths.map((m) => {
+      const openingBalance = Math.round(runningBalance * 100) / 100;
+      const monthNet = Math.round(m.monthNet * 100) / 100;
+      const closingBalance = Math.round((openingBalance + monthNet) * 100) / 100;
+
+      // Update running balance for subsequent months
+      runningBalance = closingBalance;
+
+      // Within each month, sort entries newest first for display
+      const displayEntries = [...m.entries].reverse();
+
+      return {
+        monthKey: m.monthKey,
+        monthLabel: m.monthLabel,
+        openingBalance,
+        monthNet,
+        closingBalance,
+        entries: displayEntries,
+      };
+    });
+
+    // 3. For display on mobile: reverse so newest month is first
+    const monthsNewestFirst = [...processedMonths].reverse();
+
+    const overallBalance = await getCustomerBalance(customer._id);
 
     return res.status(200).json({
       customer: {
         id: customer._id,
         name: customer.name,
         phone: customer.phone,
-        balance,
+        balance: overallBalance,
       },
-      entries,
+      months: monthsNewestFirst,
+      entries: allEntries.slice().reverse(), // backward compatibility if needed
     });
   } catch (error) {
     console.error('Error fetching entries:', error);
