@@ -20,12 +20,14 @@ import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { colors, typography, spacing } from '../constants/theme';
 import { getEntriesByCustomer } from '../api/entryApi';
+import SendReportModal from '../components/SendReportModal';
 
 export default function CustomerDetailScreen({ route, navigation }) {
   const { customerId, customerName: initialName } = route.params || {};
 
   const [customer, setCustomer] = useState({ name: initialName, balance: 0 });
   const [months, setMonths] = useState([]);
+  const [isReportModalVisible, setIsReportModalVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -133,15 +135,25 @@ export default function CustomerDetailScreen({ route, navigation }) {
               <Text style={styles.customerPhone}>📞 {customer.phone}</Text>
             ) : null}
           </View>
-          <TouchableOpacity
-            style={styles.editCustomerButton}
-            onPress={() =>
-              navigation.navigate('AddEditCustomer', { customerId })
-            }
-            activeOpacity={0.8}
-          >
-            <Text style={styles.editCustomerText}>✏️ Edit Gahak</Text>
-          </TouchableOpacity>
+          <View style={styles.headerActionButtonsRow}>
+            <TouchableOpacity
+              style={styles.reportButton}
+              onPress={() => setIsReportModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.reportButtonText}>📄 Report Bhejein</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.editCustomerButton}
+              onPress={() =>
+                navigation.navigate('AddEditCustomer', { customerId })
+              }
+              activeOpacity={0.8}
+            >
+              <Text style={styles.editCustomerText}>✏️ Edit</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Big Balance Display */}
@@ -238,6 +250,14 @@ export default function CustomerDetailScreen({ route, navigation }) {
           }
         />
       )}
+
+      {/* Send Report Modal */}
+      <SendReportModal
+        visible={isReportModalVisible}
+        onClose={() => setIsReportModalVisible(false)}
+        customerId={customerId}
+        customerName={customer.name}
+      />
     </View>
   );
 }
@@ -275,15 +295,31 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     marginTop: 2,
   },
+  headerActionButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  reportButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  reportButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   editCustomerButton: {
     backgroundColor: colors.primaryLight,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
     borderRadius: 8,
   },
   editCustomerText: {
     color: colors.primary,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   },
   balanceContainer: {

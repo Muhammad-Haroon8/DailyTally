@@ -29,6 +29,7 @@ const authRoutes = require('./routes/authRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const itemRoutes = require('./routes/itemRoutes');
 const entryRoutes = require('./routes/entryRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 
 // Health Check Route
 app.get('/api/health', (req, res) => {
@@ -49,6 +50,9 @@ app.use('/api/items', itemRoutes);
 
 // Entry Routes (Protected)
 app.use('/api', entryRoutes);
+
+// Report Routes (Protected)
+app.use('/api', reportRoutes);
 
 // Port configuration
 const PORT = process.env.PORT || 5000;
