@@ -18,6 +18,7 @@ import {
   Alert,
 } from 'react-native';
 import Card from '../components/Card';
+import PrimaryButton from '../components/PrimaryButton';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { colors, typography, spacing } from '../constants/theme';
@@ -232,6 +233,35 @@ export default function MonthDetailScreen({ route, navigation }) {
               Rs. {(monthData?.closingBalance || 0).toLocaleString()}
             </Text>
           </View>
+        </View>
+
+        {/* Action Buttons: Add Item vs Wasool Raqam */}
+        <View style={styles.buttonsRow}>
+          <PrimaryButton
+            title="Add Item (Udhaar)"
+            icon="📦"
+            variant="accent"
+            onPress={() =>
+              navigation.navigate('AddItemEntry', {
+                customerId,
+                customerName,
+              })
+            }
+            style={styles.actionBtn}
+          />
+
+          <PrimaryButton
+            title="Wasool Raqam"
+            icon="💵"
+            variant="success"
+            onPress={() =>
+              navigation.navigate('AddPaymentEntry', {
+                customerId,
+                customerName,
+              })
+            }
+            style={styles.actionBtn}
+          />
         </View>
       </Card>
 
@@ -470,6 +500,15 @@ const styles = StyleSheet.create({
   },
   statValueNeutral: {
     color: colors.textSecondary,
+  },
+  buttonsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  actionBtn: {
+    flex: 1,
+    paddingVertical: 12,
   },
   // Opening Balance Banner
   openingBalanceBanner: {

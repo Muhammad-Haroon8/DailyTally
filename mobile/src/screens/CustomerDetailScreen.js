@@ -162,33 +162,31 @@ export default function CustomerDetailScreen({ route, navigation }) {
           </Text>
         </View>
 
-        {/* Action Buttons: Add Item vs Wasool Raqam */}
-        <View style={styles.buttonsRow}>
-          <PrimaryButton
-            title="Add Item (Udhaar)"
-            icon="📦"
-            variant="accent"
-            onPress={() =>
-              navigation.navigate('AddItemEntry', {
-                customerId,
-                customerName: customer.name,
-              })
-            }
-            style={styles.actionBtn}
-          />
-
-          <PrimaryButton
-            title="Wasool Raqam"
-            icon="💵"
-            variant="success"
-            onPress={() =>
-              navigation.navigate('AddPaymentEntry', {
-                customerId,
-                customerName: customer.name,
-              })
-            }
-            style={styles.actionBtn}
-          />
+        {/* Monthly Activity Summary Pill */}
+        <View style={styles.summaryPillRow}>
+          <View style={styles.summaryPill}>
+            <Text style={styles.summaryPillLabel}>Kul Mahine</Text>
+            <Text style={styles.summaryPillValue}>{months.length} Active</Text>
+          </View>
+          <View style={styles.summaryPillDivider} />
+          <View style={styles.summaryPill}>
+            <Text style={styles.summaryPillLabel}>Kul Entries</Text>
+            <Text style={styles.summaryPillValue}>
+              {months.reduce((acc, m) => acc + (m.entries?.length || 0), 0)} Total
+            </Text>
+          </View>
+          <View style={styles.summaryPillDivider} />
+          <View style={styles.summaryPill}>
+            <Text style={styles.summaryPillLabel}>Status</Text>
+            <Text
+              style={[
+                styles.summaryPillValue,
+                balance > 0 ? styles.textDebit : balance < 0 ? styles.textCredit : styles.textNeutral,
+              ]}
+            >
+              {balance > 0 ? 'Udhaar Baqi' : balance < 0 ? 'Advance Jama' : 'Saaf Hisab'}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -316,13 +314,36 @@ const styles = StyleSheet.create({
   balanceZero: {
     color: colors.textPrimary,
   },
-  buttonsRow: {
+  summaryPillRow: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: '#FAF9F6',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
   },
-  actionBtn: {
+  summaryPill: {
+    alignItems: 'center',
     flex: 1,
-    paddingVertical: 12,
+  },
+  summaryPillDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: colors.border,
+  },
+  summaryPillLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginBottom: 2,
+    fontWeight: '500',
+  },
+  summaryPillValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.textPrimary,
   },
   listHeaderBar: {
     paddingHorizontal: spacing.lg,
