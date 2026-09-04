@@ -9,6 +9,7 @@ import SignupScreen from '../screens/SignupScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import AddEditCustomerScreen from '../screens/AddEditCustomerScreen';
 import CustomerDetailScreen from '../screens/CustomerDetailScreen';
+import MonthDetailScreen from '../screens/MonthDetailScreen';
 import ManageItemsScreen from '../screens/ManageItemsScreen';
 import AddEditItemScreen from '../screens/AddEditItemScreen';
 import AddItemEntryScreen from '../screens/AddItemEntryScreen';
@@ -69,6 +70,13 @@ export default function AppNavigator() {
             component={CustomerDetailScreen}
             options={({ route }) => ({
               title: route.params?.customerName || 'Gahak Hisab',
+            })}
+          />
+          <Stack.Screen
+            name="MonthDetail"
+            component={MonthDetailScreen}
+            options={({ route }) => ({
+              title: route.params?.initialMonthData?.monthLabel || 'Mahine Ka Hisab',
             })}
           />
           <Stack.Screen

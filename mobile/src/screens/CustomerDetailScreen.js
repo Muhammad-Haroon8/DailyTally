@@ -1,13 +1,11 @@
 // src/screens/CustomerDetailScreen.js
-// Customer Hisab & Entries screen:
-// - Big balance header & quick action buttons
-// - Vertical scrolling list of collapsible month sections (most recent month first)
-// - Current/latest month expanded by default, older months collapsed
-// - Opening balance carried forward banner (↳ Pichla baqaya)
-// - Date-wise transaction cards within each month
-// - Accordion expand/collapse with smooth interaction
+// Customer Hisab Screen:
+// - Top Section: Customer Info, Big Balance Display, "Add Item" & "Wasool Raqam" action buttons
+// - Plain vertical list of Month Cards (sorted newest first, empty months skipped)
+// - Each card shows: Month Label, Month Net total, and Closing Balance
+// - Tapping a month card navigates to MonthDetailScreen
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,21 +13,19 @@ import {
   FlatList,
   StyleSheet,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import Card from '../components/Card';
 import PrimaryButton from '../components/PrimaryButton';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { colors, typography, spacing } from '../constants/theme';
-import { getEntriesByCustomer, deleteEntry } from '../api/entryApi';
+import { getEntriesByCustomer } from '../api/entryApi';
 
 export default function CustomerDetailScreen({ route, navigation }) {
   const { customerId, customerName: initialName } = route.params || {};
 
   const [customer, setCustomer] = useState({ name: initialName, balance: 0 });
   const [months, setMonths] = useState([]);
-  const [expandedMonths, setExpandedMonths] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -44,18 +40,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
       setErrorMessage('');
       const data = await getEntriesByCustomer(customerId);
       setCustomer(data.customer);
-
-      const serverMonths = data.months || [];
-      setMonths(serverMonths);
-
-      // Expand the most recent (first) month by default, keep others collapsed
-      if (serverMonths.length > 0) {
-        setExpandedMonths((prev) => {
-          // If already set by user interaction, preserve it; otherwise default first month to true
-          if (Object.keys(prev).length > 0) return prev;
-          return { [serverMonths[0].monthKey]: true };
-        });
-      }
+      setMonths(data.months || []);
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -64,7 +49,6 @@ export default function CustomerDetailScreen({ route, navigation }) {
     }
   }, [customerId]);
 
-  // Reload when screen regains focus
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       loadData();
@@ -72,265 +56,71 @@ export default function CustomerDetailScreen({ route, navigation }) {
     return unsubscribe;
   }, [navigation, loadData]);
 
-  // Toggle expand/collapse for a given month
-  const toggleMonth = (monthKey) => {
-    setExpandedMonths((prev) => ({
-      ...prev,
-      [monthKey]: !prev[monthKey],
-    }));
-  };
+  const balance = customer.balance || 0;
 
-  const handleEntryActions = (entry) => {
-    Alert.alert(
-      entry.type === 'item' ? 'Item Entry' : 'Wasool Entry',
-      `${entry.type === 'item' ? `${entry.quantity} ${entry.itemName} @ Rs.${entry.rate}` : `Wasool: Rs. ${entry.amount}`}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Edit',
-          onPress: () => {
-            if (entry.type === 'item') {
-              navigation.navigate('AddItemEntry', {
-                customerId,
-                customerName: customer.name,
-                entry,
-              });
-            } else {
-              navigation.navigate('AddPaymentEntry', {
-                customerId,
-                customerName: customer.name,
-                entry,
-              });
-            }
-          },
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            const entryDesc =
-              entry.type === 'item'
-                ? `Rs. ${entry.amount} (${entry.quantity} ${entry.itemName} Udhaar)`
-                : `Rs. ${entry.amount} Wasool`;
-
-            Alert.alert(
-              'Confirm Delete',
-              `Kya aap waqai '${entryDesc}' ki entry delete karna chahte hain?`,
-              [
-                { text: 'Nahi', style: 'cancel' },
-                {
-                  text: 'Haan, Delete Karein',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      await deleteEntry(entry._id);
-                      loadData();
-                    } catch (err) {
-                      Alert.alert('Error', err.message);
-                    }
-                  },
-                },
-              ]
-            );
-          },
-        },
-      ]
-    );
-  };
-
-  // Helper to group a month's entries into date-wise cards
-  const groupMonthEntriesByDate = (entriesList) => {
-    const groups = {};
-
-    entriesList.forEach((entry) => {
-      const dateObj = new Date(entry.entryDate);
-      const dateKey = dateObj.toISOString().split('T')[0];
-
-      if (!groups[dateKey]) {
-        groups[dateKey] = {
-          dateKey,
-          dateFormatted: dateObj.toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-          }),
-          items: [],
-          dayTotal: 0,
-        };
-      }
-
-      groups[dateKey].items.push(entry);
-
-      if (entry.type === 'item') {
-        groups[dateKey].dayTotal += entry.amount;
-      } else {
-        groups[dateKey].dayTotal -= entry.amount;
-      }
-    });
-
-    return Object.values(groups).sort(
-      (a, b) => new Date(b.dateKey) - new Date(a.dateKey)
-    );
-  };
-
-  // Render a single date-card inside an expanded month
-  const renderDateCard = (section) => (
-    <Card key={section.dateKey} style={styles.dateCard}>
-      {/* Date Card Header */}
-      <View style={styles.dateCardHeader}>
-        <View style={styles.dateRow}>
-          <Text style={styles.calendarIcon}>📅</Text>
-          <Text style={styles.dateText}>{section.dateFormatted}</Text>
-        </View>
-        <Text
-          style={[
-            styles.dayTotalText,
-            section.dayTotal > 0
-              ? styles.dayTotalDebit
-              : section.dayTotal < 0
-              ? styles.dayTotalCredit
-              : styles.dayTotalNeutral,
-          ]}
-        >
-          Day net: {section.dayTotal >= 0 ? `Rs. ${section.dayTotal.toLocaleString()}` : `- Rs. ${Math.abs(section.dayTotal).toLocaleString()}`}
-        </Text>
-      </View>
-
-      {/* Entries within this date */}
-      {section.items.map((entry) => {
-        const isItem = entry.type === 'item';
-        return (
-          <TouchableOpacity
-            key={entry._id}
-            style={styles.entryRow}
-            onPress={() => handleEntryActions(entry)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.entryLeft}>
-              <View
-                style={[
-                  styles.entryTypePill,
-                  isItem ? styles.itemPill : styles.paymentPill,
-                ]}
-              >
-                <Text style={styles.pillIcon}>{isItem ? '📦' : '💵'}</Text>
-                <Text
-                  style={[
-                    styles.entryTypeText,
-                    isItem ? styles.itemPillText : styles.paymentPillText,
-                  ]}
-                >
-                  {isItem ? 'UDHAAR' : 'WASOOL'}
-                </Text>
-              </View>
-
-              <View style={styles.entryDetails}>
-                <Text style={styles.entryMainText}>
-                  {isItem
-                    ? `${entry.quantity} ${entry.itemName} @ Rs.${entry.rate}`
-                    : `Wasool Raqam ${entry.note ? `(${entry.note})` : ''}`}
-                </Text>
-                {entry.entryTime ? (
-                  <Text style={styles.entryTimeText}>⏰ {entry.entryTime}</Text>
-                ) : null}
-              </View>
-            </View>
-
-            <View style={styles.entryRight}>
-              <Text
-                style={[
-                  styles.entryAmountText,
-                  isItem ? styles.itemAmount : styles.paymentAmount,
-                ]}
-              >
-                {isItem ? `Rs. ${entry.amount.toLocaleString()}` : `+ Rs. ${entry.amount.toLocaleString()}`}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        );
-      })}
-    </Card>
-  );
-
-  // Render a Month Section (Collapsible Accordion Card)
-  const renderMonthSection = ({ item: monthItem }) => {
-    const isExpanded = !!expandedMonths[monthItem.monthKey];
-    const dateGroups = isExpanded ? groupMonthEntriesByDate(monthItem.entries) : [];
+  // Render a Month Card in the vertical list
+  const renderMonthCard = ({ item: monthItem }) => {
+    const isDebit = monthItem.monthNet > 0;
+    const isCredit = monthItem.monthNet < 0;
 
     return (
-      <View style={styles.monthSectionContainer}>
-        {/* Month Accordion Header */}
-        <TouchableOpacity
-          style={[styles.monthHeader, isExpanded && styles.monthHeaderExpanded]}
-          onPress={() => toggleMonth(monthItem.monthKey)}
-          activeOpacity={0.8}
-        >
-          <View style={styles.monthHeaderTopRow}>
-            <View style={styles.monthTitleWrap}>
-              <Text style={styles.monthTitleText}>🗓️ {monthItem.monthLabel}</Text>
-              <Text style={styles.monthEntriesCount}>
-                ({monthItem.entries.length} {monthItem.entries.length === 1 ? 'entry' : 'entries'})
-              </Text>
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() =>
+          navigation.navigate('MonthDetail', {
+            customerId,
+            customerName: customer.name,
+            monthKey: monthItem.monthKey,
+            initialMonthData: monthItem,
+          })
+        }
+      >
+        <Card style={styles.monthCard}>
+          <View style={styles.monthCardLeft}>
+            <View style={styles.monthIconWrap}>
+              <Text style={styles.monthCalendarIcon}>🗓️</Text>
             </View>
-            <View style={styles.chevronWrap}>
-              <Text style={styles.chevronIcon}>{isExpanded ? '▲' : '▼'}</Text>
-            </View>
-          </View>
-
-          {/* Month Summary Line */}
-          <View style={styles.monthSummaryRow}>
-            <Text style={styles.monthNetSummary}>
-              Is mahine ka hisab:{' '}
-              <Text
-                style={{
-                  fontWeight: '700',
-                  color: monthItem.monthNet > 0 ? colors.danger : colors.success,
-                }}
-              >
-                {monthItem.monthNet >= 0 ? `+Rs. ${monthItem.monthNet.toLocaleString()}` : `-Rs. ${Math.abs(monthItem.monthNet).toLocaleString()}`}
-              </Text>
-            </Text>
-            <Text style={styles.monthClosingSummary}>
-              Closing: <Text style={{ fontWeight: '700' }}>Rs. {monthItem.closingBalance.toLocaleString()}</Text>
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Collapsible Content */}
-        {isExpanded ? (
-          <View style={styles.monthBody}>
-            {/* Opening Balance Carried Forward Line (if opening balance is not zero) */}
-            {monthItem.openingBalance !== 0 ? (
-              <View style={styles.openingBalanceBanner}>
-                <View style={styles.openingBalanceLeft}>
-                  <Text style={styles.openingArrowIcon}>↳</Text>
-                  <Text style={styles.openingLabelText}>Pichla baqaya (Carried Forward):</Text>
-                </View>
-                <Text style={styles.openingBalanceAmount}>
-                  Rs. {monthItem.openingBalance.toLocaleString()}
-                </Text>
-              </View>
-            ) : null}
-
-            {/* Date-wise entries */}
-            {dateGroups.map(renderDateCard)}
-
-            {/* Month Footer Closing Balance Confirmation */}
-            <View style={styles.monthFooterBar}>
-              <Text style={styles.monthFooterText}>
-                {monthItem.monthLabel} Total Closing:{' '}
-                <Text style={styles.monthFooterAmount}>
-                  Rs. {monthItem.closingBalance.toLocaleString()}
+            <View style={styles.monthInfoCol}>
+              <Text style={styles.monthLabelText}>{monthItem.monthLabel}</Text>
+              <Text style={styles.monthNetText}>
+                Is mahine ka hisab:{' '}
+                <Text
+                  style={[
+                    styles.netAmountHighlight,
+                    isDebit ? styles.textDebit : isCredit ? styles.textCredit : styles.textNeutral,
+                  ]}
+                >
+                  {monthItem.monthNet >= 0
+                    ? `+Rs. ${monthItem.monthNet.toLocaleString()}`
+                    : `-Rs. ${Math.abs(monthItem.monthNet).toLocaleString()}`}
                 </Text>
               </Text>
+              <Text style={styles.monthEntriesCountText}>
+                {monthItem.entries.length} {monthItem.entries.length === 1 ? 'entry' : 'entries'}
+              </Text>
             </View>
           </View>
-        ) : null}
-      </View>
+
+          <View style={styles.monthCardRight}>
+            <Text style={styles.closingLabel}>Closing</Text>
+            <Text
+              style={[
+                styles.closingAmountText,
+                monthItem.closingBalance > 0
+                  ? styles.textDebit
+                  : monthItem.closingBalance < 0
+                  ? styles.textCredit
+                  : styles.textNeutral,
+              ]}
+            >
+              Rs. {Math.abs(monthItem.closingBalance).toLocaleString()}
+            </Text>
+            <Text style={styles.viewDetailsText}>Tafseel Dekhein →</Text>
+          </View>
+        </Card>
+      </TouchableOpacity>
     );
   };
-
-  const balance = customer.balance || 0;
 
   return (
     <View style={styles.container}>
@@ -415,14 +205,20 @@ export default function CustomerDetailScreen({ route, navigation }) {
         </View>
       ) : null}
 
-      {/* Month Sections List */}
+      {/* List Header Title */}
+      <View style={styles.listHeaderBar}>
+        <Text style={styles.listHeaderTitle}>Mahinawaar Hisab (Months List)</Text>
+        <Text style={styles.listHeaderSubtitle}>Mahine par tap kar ke tafseel dekhein</Text>
+      </View>
+
+      {/* Vertical List of Month Cards */}
       {isLoading ? (
-        <LoadingSpinner message="Loading gahak hisab & entries..." />
+        <LoadingSpinner message="Loading mahinawaar hisab..." />
       ) : (
         <FlatList
           data={months}
           keyExtractor={(item) => item.monthKey}
-          renderItem={renderMonthSection}
+          renderItem={renderMonthCard}
           contentContainerStyle={
             months.length === 0
               ? styles.emptyListContainer
@@ -528,6 +324,21 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
   },
+  listHeaderBar: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  listHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  listHeaderSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   listContainer: {
     padding: spacing.md,
     paddingBottom: 36,
@@ -537,237 +348,88 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.xl,
   },
-  // Month Section Styles
-  monthSectionContainer: {
-    marginBottom: spacing.md,
-    borderRadius: 14,
-    overflow: 'hidden',
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  monthHeader: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  monthHeaderExpanded: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  monthHeaderTopRow: {
+  // Month Card in List
+  monthCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    padding: 16,
+    marginBottom: spacing.md,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
   },
-  monthTitleWrap: {
+  monthCardLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    flex: 1,
   },
-  monthTitleText: {
+  monthIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: colors.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  monthCalendarIcon: {
+    fontSize: 22,
+  },
+  monthInfoCol: {
+    flex: 1,
+  },
+  monthLabelText: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.primary,
+    color: colors.textPrimary,
+    marginBottom: 3,
   },
-  monthEntriesCount: {
+  monthNetText: {
     fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 2,
+  },
+  netAmountHighlight: {
+    fontWeight: '700',
+  },
+  monthEntriesCountText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  monthCardRight: {
+    alignItems: 'flex-end',
+    paddingLeft: spacing.sm,
+  },
+  closingLabel: {
+    fontSize: 11,
     color: colors.textSecondary,
     fontWeight: '500',
   },
-  chevronWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
+  closingAmountText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginVertical: 2,
   },
-  chevronIcon: {
-    fontSize: 12,
+  viewDetailsText: {
+    fontSize: 11,
+    fontWeight: '600',
     color: colors.primary,
-    fontWeight: 'bold',
   },
-  monthSummaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 6,
-  },
-  monthNetSummary: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  monthClosingSummary: {
-    fontSize: 12,
-    color: colors.textPrimary,
-  },
-  monthBody: {
-    padding: spacing.sm,
-    backgroundColor: colors.background,
-  },
-  // Opening Balance Banner
-  openingBalanceBanner: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FAF5EE',
-    borderWidth: 1,
-    borderColor: '#EBDCC8',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    marginBottom: spacing.sm,
-  },
-  openingBalanceLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  openingArrowIcon: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.accent,
-  },
-  openingLabelText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.accent,
-    fontStyle: 'italic',
-  },
-  openingBalanceAmount: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.accent,
-  },
-  // Month Footer
-  monthFooterBar: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    alignItems: 'flex-end',
-  },
-  monthFooterText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  monthFooterAmount: {
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  // Date Card Styles
-  dateCard: {
-    padding: 0,
-    overflow: 'hidden',
-    marginBottom: spacing.sm,
-  },
-  dateCardHeader: {
-    backgroundColor: '#F3EFEA',
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  calendarIcon: {
-    fontSize: 13,
-    marginRight: 6,
-  },
-  dateText: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  dayTotalText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  dayTotalDebit: {
+  textDebit: {
     color: colors.danger,
   },
-  dayTotalCredit: {
+  textCredit: {
     color: colors.success,
   },
-  dayTotalNeutral: {
+  textNeutral: {
     color: colors.textSecondary,
-  },
-  entryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.border,
-  },
-  entryLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  entryTypePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-    marginRight: spacing.sm,
-  },
-  itemPill: {
-    backgroundColor: colors.dangerLight,
-  },
-  paymentPill: {
-    backgroundColor: colors.successLight,
-  },
-  pillIcon: {
-    fontSize: 11,
-    marginRight: 4,
-  },
-  entryTypeText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  itemPillText: {
-    color: colors.danger,
-  },
-  paymentPillText: {
-    color: colors.success,
-  },
-  entryDetails: {
-    flex: 1,
-  },
-  entryMainText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  entryTimeText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  entryRight: {
-    paddingLeft: spacing.sm,
-  },
-  entryAmountText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  itemAmount: {
-    color: colors.danger,
-  },
-  paymentAmount: {
-    color: colors.success,
   },
   errorContainer: {
     margin: spacing.lg,
