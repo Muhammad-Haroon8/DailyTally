@@ -14,12 +14,12 @@ import { Alert } from 'react-native';
 const getBaseUrl = () => {
   const envUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
 
-  // 1. If a production Vercel/cloud URL is defined, use it directly
-  if (envUrl && (envUrl.startsWith('https://') || envUrl.startsWith('http://')) && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
-    return envUrl;
+  // 1. If an environment variable is defined and is not localhost, use it directly (e.g. Vercel production)
+  if (envUrl && envUrl.trim() !== '' && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return envUrl.trim();
   }
 
-  // 2. Try host URI from Expo dev server during local development
+  // 2. Try host URI from Expo dev server during local Expo Go development
   const hostUri =
     Constants.expoConfig?.hostUri ||
     Constants.manifest?.debuggerHost ||
@@ -32,8 +32,8 @@ const getBaseUrl = () => {
     }
   }
 
-  // 3. Fallback to physical Wi-Fi IP address for local dev
-  return 'http://192.168.100.6:5000/api';
+  // 3. Fallback for physical device local testing if no env or hostUri is found
+  return 'https://daily-tally-theta.vercel.app/api';
 };
 
 const API_BASE_URL = getBaseUrl();

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Karobar Hisab",
-    "slug": "karobar-hisab",
+    "name": "Daily Tally",
+    "slug": "dailytally",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,10 +13,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.karobarhisab.app"
+      "bundleIdentifier": "com.muhammadharoon.dailytally"
     },
     "android": {
-      "package": "com.karobarhisab.app",
+      "package": "com.muhammadharoon.dailytally",
       "versionCode": 1,
       "permissions": [],
       "adaptiveIcon": {

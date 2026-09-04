@@ -14,7 +14,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://your-app.vercel.app/api"
+        "EXPO_PUBLIC_API_BASE_URL": "https://daily-tally-theta.vercel.app/api"
       }
     },
     "production": {
@@ -22,7 +22,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://your-app.vercel.app/api"
+        "EXPO_PUBLIC_API_BASE_URL": "https://daily-tally-theta.vercel.app/api"
       }
     }
   },
