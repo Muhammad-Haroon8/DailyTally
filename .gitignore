@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment files & Secrets
+.env
+.env.*
+!.env.example
+*.env
+
+# Expo / Mobile build artifacts
+.expo/
+mobile/.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native builds
+mobile/android/
+mobile/ios/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+
+# IDE / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
