@@ -7,7 +7,7 @@
       "config": {
         "includeFiles": [
           "fonts/**",
-          "node_modules/pdfkit/js/data/**"
+          "node_modules/pdfkit/**"
         ],
         "maxDuration": 30
       }

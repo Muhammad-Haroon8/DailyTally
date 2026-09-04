@@ -94,17 +94,18 @@ const generateCustomerReportPdf = async (req, res) => {
     totalPayments = Math.round(totalPayments * 100) / 100;
     const closingBalance = Math.round((openingBalance + totalItems - totalPayments) * 100) / 100;
 
+    // Check for Arial unicode font to correctly render Urdu / Arabic script
+    const regularFontPath = path.resolve(__dirname, '..', 'fonts', 'arial.ttf');
+    const boldFontPath = path.resolve(__dirname, '..', 'fonts', 'arialbd.ttf');
+    const hasUnicodeFont = fs.existsSync(regularFontPath);
+
     // 5. Initialize PDFDocument (buffered in-memory for serverless stream safety)
     const doc = new PDFDocument({
       size: 'A4',
       margin: 40,
+      font: hasUnicodeFont ? regularFontPath : undefined,
     });
 
-    // Check for Arial unicode font to correctly render Urdu / Arabic script
-    const regularFontPath = path.join(__dirname, '..', 'fonts', 'arial.ttf');
-    const boldFontPath = path.join(__dirname, '..', 'fonts', 'arialbd.ttf');
-
-    const hasUnicodeFont = fs.existsSync(regularFontPath);
     if (hasUnicodeFont) {
       doc.registerFont('AppFont', regularFontPath);
       if (fs.existsSync(boldFontPath)) {
