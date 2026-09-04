@@ -1,11 +1,10 @@
-// src/screens/MonthDetailScreen.js
-// Month Detail Screen:
-// - Header with Month Label (e.g. "September 2026")
-// - Opening balance carried forward banner (↳ Pichla baqaya)
-// - Weekly summary cards (Week 1, Week 2, etc.) with date range and net total
-// - Day-wise transaction cards (most recent date first)
-// - Entry row layout in column direction (prevents cramped text)
-// - Edit/Delete entry actions
+// src/screens/WeekDetailScreen.js
+// Weekly Detail Screen:
+// - Header with Week Label & Date Range (e.g. "Week 1 (1 - 7 Sep 2026)")
+// - Top overview card: Total Udhaar, Total Wasool, and Weekly Net
+// - Day-wise transaction cards within this week
+// - Entry details with vertical layout (flexDirection: column)
+// - Tap to edit / delete entries
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
@@ -18,32 +17,50 @@ import {
   Alert,
 } from 'react-native';
 import Card from '../components/Card';
-import PrimaryButton from '../components/PrimaryButton';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { colors, typography, spacing } from '../constants/theme';
 import { getEntriesByCustomer, deleteEntry } from '../api/entryApi';
 
-export default function MonthDetailScreen({ route, navigation }) {
-  const { customerId, customerName, monthKey, initialMonthData } = route.params || {};
+export default function WeekDetailScreen({ route, navigation }) {
+  const {
+    customerId,
+    customerName,
+    monthKey,
+    monthLabel,
+    weekNum,
+    startDay,
+    endDay,
+    weekLabel,
+    dateRange,
+  } = route.params || {};
 
-  const [monthData, setMonthData] = useState(initialMonthData || null);
-  const [isLoading, setIsLoading] = useState(!initialMonthData);
+  const [entries, setEntries] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const loadMonthData = useCallback(async (isRefresh = false) => {
+  const loadWeekData = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) {
         setIsRefreshing(true);
-      } else if (!monthData) {
+      } else {
         setIsLoading(true);
       }
       setErrorMessage('');
       const data = await getEntriesByCustomer(customerId);
       const targetMonth = (data.months || []).find((m) => m.monthKey === monthKey);
-      if (targetMonth) {
-        setMonthData(targetMonth);
+
+      if (targetMonth && targetMonth.entries) {
+        // Filter entries that fall into this calendar week
+        const weekEntries = targetMonth.entries.filter((entry) => {
+          const d = new Date(entry.entryDate);
+          const day = d.getDate();
+          return day >= startDay && day <= endDay;
+        });
+        setEntries(weekEntries);
+      } else {
+        setEntries([]);
       }
     } catch (error) {
       setErrorMessage(error.message);
@@ -51,70 +68,50 @@ export default function MonthDetailScreen({ route, navigation }) {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [customerId, monthKey, monthData]);
+  }, [customerId, monthKey, startDay, endDay]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      loadMonthData();
+      loadWeekData();
     });
     return unsubscribe;
-  }, [navigation, loadMonthData]);
+  }, [navigation, loadWeekData]);
 
-  // Set header title to Month Label
+  // Set navigation header title
   useEffect(() => {
-    if (monthData?.monthLabel) {
-      navigation.setOptions({
-        title: monthData.monthLabel,
-      });
-    }
-  }, [monthData?.monthLabel, navigation]);
+    navigation.setOptions({
+      title: `${weekLabel} (${dateRange})`,
+    });
+  }, [weekLabel, dateRange, navigation]);
 
-  // 1. Group entries by Calendar Weeks (Week 1: 1-7, Week 2: 8-14, Week 3: 15-21, Week 4: 22-28, Week 5: 29-end)
-  const weeklySummaries = useMemo(() => {
-    if (!monthData || !monthData.entries || monthData.entries.length === 0) return [];
+  // Compute Weekly Totals
+  const weeklyTotals = useMemo(() => {
+    let totalUdhaar = 0;
+    let totalWasool = 0;
 
-    const weeks = [
-      { weekNum: 1, startDay: 1, endDay: 7, label: 'Week 1', net: 0, count: 0 },
-      { weekNum: 2, startDay: 8, endDay: 14, label: 'Week 2', net: 0, count: 0 },
-      { weekNum: 3, startDay: 15, endDay: 21, label: 'Week 3', net: 0, count: 0 },
-      { weekNum: 4, startDay: 22, endDay: 28, label: 'Week 4', net: 0, count: 0 },
-      { weekNum: 5, startDay: 29, endDay: 31, label: 'Week 5', net: 0, count: 0 },
-    ];
-
-    // Short month name (e.g. "Sep")
-    const monthShort = monthData.monthLabel ? monthData.monthLabel.split(' ')[0].slice(0, 3) : '';
-
-    monthData.entries.forEach((entry) => {
-      const d = new Date(entry.entryDate);
-      const day = d.getDate();
-
-      const week = weeks.find((w) => day >= w.startDay && day <= w.endDay);
-      if (week) {
-        week.count += 1;
-        if (entry.type === 'item') {
-          week.net += entry.amount;
-        } else {
-          week.net -= entry.amount;
-        }
+    entries.forEach((e) => {
+      if (e.type === 'item') {
+        totalUdhaar += e.amount;
+      } else {
+        totalWasool += e.amount;
       }
     });
 
-    // Skip weeks with zero activity
-    return weeks
-      .filter((w) => w.count > 0)
-      .map((w) => ({
-        ...w,
-        dateRange: `${w.startDay} - ${w.endDay} ${monthShort}`,
-      }));
-  }, [monthData]);
+    const net = totalUdhaar - totalWasool;
 
-  // 2. Group entries into Day-wise cards (newest date first)
+    return {
+      totalUdhaar,
+      totalWasool,
+      net,
+      count: entries.length,
+    };
+  }, [entries]);
+
+  // Group entries into day-wise sections (newest date first)
   const dayWiseGroups = useMemo(() => {
-    if (!monthData || !monthData.entries) return [];
-
     const groups = {};
 
-    monthData.entries.forEach((entry) => {
+    entries.forEach((entry) => {
       const dateObj = new Date(entry.entryDate);
       const dateKey = dateObj.toISOString().split('T')[0];
 
@@ -143,7 +140,7 @@ export default function MonthDetailScreen({ route, navigation }) {
     return Object.values(groups).sort(
       (a, b) => new Date(b.dateKey) - new Date(a.dateKey)
     );
-  }, [monthData]);
+  }, [entries]);
 
   const handleEntryActions = (entry) => {
     Alert.alert(
@@ -189,7 +186,7 @@ export default function MonthDetailScreen({ route, navigation }) {
                   onPress: async () => {
                     try {
                       await deleteEntry(entry._id);
-                      loadMonthData();
+                      loadWeekData();
                     } catch (err) {
                       Alert.alert('Error', err.message);
                     }
@@ -205,128 +202,56 @@ export default function MonthDetailScreen({ route, navigation }) {
 
   const renderHeader = () => (
     <View style={styles.topSection}>
-      {/* Month Overview Card */}
-      <Card style={styles.monthOverviewCard}>
+      {/* Weekly Stats Card */}
+      <Card style={styles.weekOverviewCard}>
         <View style={styles.overviewTopRow}>
-          <Text style={styles.overviewCustomerName}>{customerName || 'Gahak'}</Text>
-          <Text style={styles.overviewMonthLabel}>{monthData?.monthLabel}</Text>
+          <View>
+            <Text style={styles.overviewCustomerName}>{customerName || 'Gahak'}</Text>
+            <Text style={styles.overviewWeekSubtitle}>{weekLabel} • {dateRange}</Text>
+          </View>
+          <View style={styles.countBadge}>
+            <Text style={styles.countBadgeText}>{weeklyTotals.count} {weeklyTotals.count === 1 ? 'entry' : 'entries'}</Text>
+          </View>
         </View>
 
         <View style={styles.overviewStatsRow}>
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Month Net Hisab</Text>
-            <Text
-              style={[
-                styles.statValue,
-                (monthData?.monthNet || 0) > 0 ? styles.statValueDebit : styles.statValueCredit,
-              ]}
-            >
-              {(monthData?.monthNet || 0) >= 0 ? `+Rs. ${(monthData?.monthNet || 0).toLocaleString()}` : `-Rs. ${Math.abs(monthData?.monthNet || 0).toLocaleString()}`}
+            <Text style={styles.statLabel}>Kul Udhaar (Items)</Text>
+            <Text style={[styles.statValue, styles.statValueDebit]}>
+              Rs. {weeklyTotals.totalUdhaar.toLocaleString()}
             </Text>
           </View>
 
           <View style={styles.statDivider} />
 
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Closing Balance</Text>
-            <Text style={[styles.statValue, styles.statValuePrimary]}>
-              Rs. {(monthData?.closingBalance || 0).toLocaleString()}
+            <Text style={styles.statLabel}>Kul Wasool (Cash)</Text>
+            <Text style={[styles.statValue, styles.statValueCredit]}>
+              Rs. {weeklyTotals.totalWasool.toLocaleString()}
+            </Text>
+          </View>
+
+          <View style={styles.statDivider} />
+
+          <View style={styles.statBox}>
+            <Text style={styles.statLabel}>Week Net</Text>
+            <Text
+              style={[
+                styles.statValue,
+                weeklyTotals.net > 0
+                  ? styles.statValueDebit
+                  : weeklyTotals.net < 0
+                  ? styles.statValueCredit
+                  : styles.statValueNeutral,
+              ]}
+            >
+              {weeklyTotals.net >= 0 ? `+Rs. ${weeklyTotals.net.toLocaleString()}` : `-Rs. ${Math.abs(weeklyTotals.net).toLocaleString()}`}
             </Text>
           </View>
         </View>
-
-        {/* Action Buttons: Add Item vs Wasool Raqam */}
-        <View style={styles.buttonsRow}>
-          <PrimaryButton
-            title="Add Item (Udhaar)"
-            icon="📦"
-            variant="accent"
-            onPress={() =>
-              navigation.navigate('AddItemEntry', {
-                customerId,
-                customerName,
-              })
-            }
-            style={styles.actionBtn}
-          />
-
-          <PrimaryButton
-            title="Wasool Raqam"
-            icon="💵"
-            variant="success"
-            onPress={() =>
-              navigation.navigate('AddPaymentEntry', {
-                customerId,
-                customerName,
-              })
-            }
-            style={styles.actionBtn}
-          />
-        </View>
       </Card>
 
-      {/* Opening Balance Carried Forward Line (if opening balance is not 0) */}
-      {monthData && monthData.openingBalance !== 0 ? (
-        <View style={styles.openingBalanceBanner}>
-          <View style={styles.openingBalanceLeft}>
-            <Text style={styles.openingArrowIcon}>↳</Text>
-            <Text style={styles.openingLabelText}>Pichla baqaya (Opening Carried Forward):</Text>
-          </View>
-          <Text style={styles.openingBalanceAmount}>
-            Rs. {monthData.openingBalance.toLocaleString()}
-          </Text>
-        </View>
-      ) : null}
-
-      {/* Weekly Summary Cards Section */}
-      {weeklySummaries.length > 0 ? (
-        <View style={styles.weeklySection}>
-          <Text style={styles.sectionHeaderTitle}>📊 Weekly Summary</Text>
-          <View style={styles.weeklyCardsGrid}>
-            {weeklySummaries.map((w) => (
-              <TouchableOpacity
-                key={w.weekNum}
-                style={styles.weekCardTouchable}
-                activeOpacity={0.7}
-                onPress={() =>
-                  navigation.navigate('WeekDetail', {
-                    customerId,
-                    customerName,
-                    monthKey,
-                    monthLabel: monthData?.monthLabel,
-                    weekNum: w.weekNum,
-                    startDay: w.startDay,
-                    endDay: w.endDay,
-                    weekLabel: w.label,
-                    dateRange: w.dateRange,
-                  })
-                }
-              >
-                <Card style={styles.weekCard}>
-                  <View style={styles.weekCardTop}>
-                    <Text style={styles.weekLabel}>{w.label}</Text>
-                    <Text style={styles.weekDateRange}>{w.dateRange}</Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.weekNetText,
-                      w.net > 0 ? styles.statValueDebit : w.net < 0 ? styles.statValueCredit : styles.statValueNeutral,
-                    ]}
-                  >
-                    {w.net >= 0 ? `+Rs. ${w.net.toLocaleString()}` : `-Rs. ${Math.abs(w.net).toLocaleString()}`}
-                  </Text>
-                  <View style={styles.weekCardBottomRow}>
-                    <Text style={styles.weekEntriesCount}>{w.count} {w.count === 1 ? 'entry' : 'entries'}</Text>
-                    <Text style={styles.weekViewDetailsText}>Kholein →</Text>
-                  </View>
-                </Card>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      ) : null}
-
-      <Text style={styles.sectionHeaderTitle}>📅 Day-wise Entries</Text>
+      <Text style={styles.sectionHeaderTitle}>📅 Is Hafte Ke Din-Ba-Din Entries</Text>
     </View>
   );
 
@@ -352,7 +277,7 @@ export default function MonthDetailScreen({ route, navigation }) {
         </Text>
       </View>
 
-      {/* Entry Rows: Flex Direction COLUMN for descriptive details */}
+      {/* Entry Rows in Column Layout */}
       {daySection.items.map((entry) => {
         const isItem = entry.type === 'item';
         return (
@@ -362,9 +287,7 @@ export default function MonthDetailScreen({ route, navigation }) {
             onPress={() => handleEntryActions(entry)}
             activeOpacity={0.7}
           >
-            {/* Left Column: Type pill + vertical details */}
             <View style={styles.entryLeftCol}>
-              {/* Type Pill */}
               <View
                 style={[
                   styles.entryTypePill,
@@ -382,7 +305,6 @@ export default function MonthDetailScreen({ route, navigation }) {
                 </Text>
               </View>
 
-              {/* Stacked Details (flexDirection: column) to prevent cramped text */}
               <View style={styles.entryDetailsColumn}>
                 <Text style={styles.entryItemNameText}>
                   {isItem ? entry.itemName : 'Wasool Raqam'}
@@ -401,7 +323,6 @@ export default function MonthDetailScreen({ route, navigation }) {
               </View>
             </View>
 
-            {/* Right Column: Entry Amount */}
             <View style={styles.entryRightCol}>
               <Text
                 style={[
@@ -421,7 +342,7 @@ export default function MonthDetailScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       {isLoading ? (
-        <LoadingSpinner message="Loading mahine ka hisab..." />
+        <LoadingSpinner message="Loading hafte ka hisab..." />
       ) : (
         <FlatList
           data={dayWiseGroups}
@@ -432,14 +353,14 @@ export default function MonthDetailScreen({ route, navigation }) {
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
-              onRefresh={() => loadMonthData(true)}
+              onRefresh={() => loadWeekData(true)}
               colors={[colors.primary]}
             />
           }
           ListEmptyComponent={
             <EmptyState
               icon="📝"
-              title="Is mahine koi entry nahi hai"
+              title="Is hafte koi entry nahi hai"
               subtitle="Pichle screen par ja kar entry add karein."
             />
           }
@@ -461,7 +382,7 @@ const styles = StyleSheet.create({
   topSection: {
     marginBottom: spacing.sm,
   },
-  monthOverviewCard: {
+  weekOverviewCard: {
     padding: spacing.lg,
     backgroundColor: colors.cardBackground,
     marginBottom: spacing.md,
@@ -482,10 +403,22 @@ const styles = StyleSheet.create({
     ...typography.h2,
     color: colors.primary,
   },
-  overviewMonthLabel: {
-    fontSize: 14,
-    fontWeight: '700',
+  overviewWeekSubtitle: {
+    fontSize: 13,
     color: colors.textSecondary,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  countBadge: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  countBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
   },
   overviewStatsRow: {
     flexDirection: 'row',
@@ -502,13 +435,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textSecondary,
     marginBottom: 4,
     fontWeight: '500',
   },
   statValue: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
   },
   statValueDebit: {
@@ -517,59 +450,8 @@ const styles = StyleSheet.create({
   statValueCredit: {
     color: colors.success,
   },
-  statValuePrimary: {
-    color: colors.primary,
-  },
   statValueNeutral: {
     color: colors.textSecondary,
-  },
-  buttonsRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.md,
-  },
-  actionBtn: {
-    flex: 1,
-    paddingVertical: 12,
-  },
-  // Opening Balance Banner
-  openingBalanceBanner: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FAF5EE',
-    borderWidth: 1,
-    borderColor: '#EBDCC8',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: spacing.md,
-  },
-  openingBalanceLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-  },
-  openingArrowIcon: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.accent,
-  },
-  openingLabelText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.accent,
-    fontStyle: 'italic',
-  },
-  openingBalanceAmount: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: colors.accent,
-  },
-  // Weekly Section
-  weeklySection: {
-    marginBottom: spacing.md,
   },
   sectionHeaderTitle: {
     fontSize: 15,
@@ -578,56 +460,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     marginTop: spacing.xs,
   },
-  weeklyCardsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  weekCardTouchable: {
-    width: '48%',
-  },
-  weekCard: {
-    width: '100%',
-    padding: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  weekCardTop: {
-    marginBottom: 4,
-  },
-  weekCardBottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  weekViewDetailsText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  weekLabel: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: colors.primary,
-  },
-  weekDateRange: {
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  weekNetText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginTop: 2,
-  },
-  weekEntriesCount: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  // Day Card Styles
+  // Date Card Styles
   dateCard: {
     padding: 0,
     overflow: 'hidden',
@@ -672,7 +505,6 @@ const styles = StyleSheet.create({
   dayTotalNeutral: {
     color: colors.textSecondary,
   },
-  // Entry Row Layout: Column-based for clean vertical hierarchy
   entryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -716,7 +548,6 @@ const styles = StyleSheet.create({
   paymentPillText: {
     color: colors.success,
   },
-  // Details in COLUMN (Vertical stacking)
   entryDetailsColumn: {
     flex: 1,
     flexDirection: 'column',

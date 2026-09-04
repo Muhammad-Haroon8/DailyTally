@@ -10,6 +10,7 @@ import DashboardScreen from '../screens/DashboardScreen';
 import AddEditCustomerScreen from '../screens/AddEditCustomerScreen';
 import CustomerDetailScreen from '../screens/CustomerDetailScreen';
 import MonthDetailScreen from '../screens/MonthDetailScreen';
+import WeekDetailScreen from '../screens/WeekDetailScreen';
 import ManageItemsScreen from '../screens/ManageItemsScreen';
 import AddEditItemScreen from '../screens/AddEditItemScreen';
 import AddItemEntryScreen from '../screens/AddItemEntryScreen';
@@ -77,6 +78,13 @@ export default function AppNavigator() {
             component={MonthDetailScreen}
             options={({ route }) => ({
               title: route.params?.initialMonthData?.monthLabel || 'Mahine Ka Hisab',
+            })}
+          />
+          <Stack.Screen
+            name="WeekDetail"
+            component={WeekDetailScreen}
+            options={({ route }) => ({
+              title: route.params?.weekLabel || 'Hafte Ka Hisab',
             })}
           />
           <Stack.Screen
