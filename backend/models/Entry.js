@@ -73,4 +73,7 @@ const entrySchema = new mongoose.Schema(
   }
 );
 
+// Compound index to optimize range and opening-balance queries for report generation
+entrySchema.index({ customerId: 1, entryDate: 1 });
+
 module.exports = mongoose.model('Entry', entrySchema);

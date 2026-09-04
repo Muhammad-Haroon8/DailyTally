@@ -94,7 +94,7 @@ const generateCustomerReportPdf = async (req, res) => {
     totalPayments = Math.round(totalPayments * 100) / 100;
     const closingBalance = Math.round((openingBalance + totalItems - totalPayments) * 100) / 100;
 
-    // 5. Initialize PDFDocument (streamed directly to response)
+    // 5. Initialize PDFDocument (buffered in-memory for serverless stream safety)
     const doc = new PDFDocument({
       size: 'A4',
       margin: 40,
@@ -117,16 +117,19 @@ const generateCustomerReportPdf = async (req, res) => {
     const fontRegular = hasUnicodeFont ? 'AppFont' : 'Helvetica';
     const fontBold = hasUnicodeFont ? 'AppFont-Bold' : 'Helvetica-Bold';
 
+    // Buffer PDF chunks in memory to guarantee the response completes reliably in serverless
+    const chunks = [];
+    const pdfPromise = new Promise((resolve, reject) => {
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', (err) => reject(err));
+    });
+
     // Clean filename
     const safeCustomerName = customer.name.replace(/[^a-zA-Z0-9]/g, '_');
     const startStr = startDate.toISOString().split('T')[0];
     const endStr = endDate.toISOString().split('T')[0];
     const filename = `Hisab_${safeCustomerName}_${startStr}_to_${endStr}.pdf`;
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-
-    doc.pipe(res);
 
     // ================= HEADER =================
     doc.fillColor('#0F6E56').fontSize(22).font(fontBold).text('DAILY TALLY / KAROBAR HISAB', { align: 'center' });
@@ -259,11 +262,28 @@ const generateCustomerReportPdf = async (req, res) => {
     doc.fontSize(8).fillColor('#7A7975').font(fontRegular)
       .text('Daily Tally - Software Hisab & Ledger. Generated securely for customer record.', 40, 780, { align: 'center', width: 515 });
 
+    // Finalize PDF generation
     doc.end();
+
+    const pdfBuffer = await pdfPromise;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+
+    return res.status(200).send(pdfBuffer);
   } catch (error) {
-    console.error('Error generating PDF report:', error);
+    console.error('❌ [PDF Generation Error]:', {
+      message: error.message,
+      stack: error.stack,
+      customerId: req.params?.customerId,
+      dates: { startDate: req.query?.startDate, endDate: req.query?.endDate },
+    });
     if (!res.headersSent) {
-      return res.status(500).json({ error: 'Server error while generating PDF report' });
+      return res.status(500).json({
+        error: 'Server error while generating PDF report',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      });
     }
   }
 };

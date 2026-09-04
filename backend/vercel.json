@@ -3,7 +3,14 @@
   "builds": [
     {
       "src": "server.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": [
+          "fonts/**",
+          "node_modules/pdfkit/js/data/**"
+        ],
+        "maxDuration": 30
+      }
     }
   ],
   "routes": [
