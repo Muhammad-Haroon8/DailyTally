@@ -12,15 +12,14 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import { Alert } from 'react-native';
 import EyeIcon from '../components/EyeIcon';
 import Card from '../components/Card';
 import PrimaryButton from '../components/PrimaryButton';
 import { colors, typography, spacing } from '../constants/theme';
-import { useAuth } from '../context/AuthContext';
+import { signupRequest } from '../api/authApi';
 
 export default function SignupScreen({ navigation }) {
-  const { signup } = useAuth();
-
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -57,7 +56,21 @@ export default function SignupScreen({ navigation }) {
 
     try {
       setIsSubmitting(true);
-      await signup(name.trim(), email.trim(), password);
+      await signupRequest(name.trim(), email.trim(), password);
+      
+      // Success: Show alert and navigate to Login screen
+      Alert.alert(
+        'Account Ban Gaya! 🎉',
+        'Aapka account kamyabi se ban gaya hai. Barah-e-karam ab login karein.',
+        [
+          {
+            text: 'Login Karein',
+            onPress: () => {
+              navigation.navigate('Login', { prefillEmail: email.trim() });
+            },
+          },
+        ]
+      );
     } catch (error) {
       setErrorMessage(error.message);
     } finally {

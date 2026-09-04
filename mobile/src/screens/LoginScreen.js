@@ -18,14 +18,21 @@ import PrimaryButton from '../components/PrimaryButton';
 import { colors, typography, spacing } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 
-export default function LoginScreen({ navigation }) {
+export default function LoginScreen({ navigation, route }) {
   const { login } = useAuth();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(route?.params?.prefillEmail || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Update email if route params change (e.g. redirected from Signup)
+  React.useEffect(() => {
+    if (route?.params?.prefillEmail) {
+      setEmail(route.params.prefillEmail);
+    }
+  }, [route?.params?.prefillEmail]);
 
   const handleLogin = async () => {
     setErrorMessage('');

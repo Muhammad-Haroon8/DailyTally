@@ -170,6 +170,8 @@ export default function AddItemEntryScreen({ route, navigation }) {
               mode="date"
               display="default"
               onChange={handleDateChange}
+              onValueChange={handleDateChange}
+              onDismiss={() => setShowDatePicker(false)}
             />
           )}
 
@@ -179,6 +181,8 @@ export default function AddItemEntryScreen({ route, navigation }) {
               mode="time"
               display="default"
               onChange={handleTimeChange}
+              onValueChange={handleTimeChange}
+              onDismiss={() => setShowTimePicker(false)}
             />
           )}
 
