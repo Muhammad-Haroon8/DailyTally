@@ -130,7 +130,14 @@ export default function CustomerDetailScreen({ route, navigation }) {
       <View style={styles.headerCard}>
         <View style={styles.headerTop}>
           <View style={styles.headerInfo}>
-            <Text style={styles.customerName}>{customer.name || 'Gahak'}</Text>
+            <View style={styles.customerNameRow}>
+              <Text style={styles.customerName}>{customer.name || 'Gahak'}</Text>
+              {(customer.isLocal || (typeof customerId === 'string' && customerId.startsWith('local-'))) && (
+                <View style={styles.queuedBadge}>
+                  <Text style={styles.queuedBadgeText}>⏳ Queued</Text>
+                </View>
+              )}
+            </View>
             {customer.phone ? (
               <Text style={styles.customerPhone}>📞 {customer.phone}</Text>
             ) : null}
@@ -288,8 +295,27 @@ const styles = StyleSheet.create({
   headerInfo: {
     flex: 1,
   },
+  customerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
   customerName: {
     ...typography.h1,
+  },
+  queuedBadge: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  queuedBadgeText: {
+    fontSize: 10,
+    color: '#B45309',
+    fontWeight: '700',
   },
   customerPhone: {
     ...typography.bodySmall,

@@ -329,9 +329,16 @@ export default function WeekDetailScreen({ route, navigation }) {
               </View>
 
               <View style={styles.entryDetailsColumn}>
-                <Text style={styles.entryItemNameText}>
-                  {isItem ? entry.itemName : 'Wasool Raqam'}
-                </Text>
+                <View style={styles.itemNameRow}>
+                  <Text style={styles.entryItemNameText}>
+                    {isItem ? entry.itemName : 'Wasool Raqam'}
+                  </Text>
+                  {(entry.isLocal || (typeof entry._id === 'string' && entry._id.startsWith('local-'))) && (
+                    <View style={styles.queuedBadge}>
+                      <Text style={styles.queuedBadgeText}>⏳ Queued</Text>
+                    </View>
+                  )}
+                </View>
                 {isItem ? (
                   <Text style={styles.entryQtyRateText}>
                     Qty: {entry.quantity}  ×  Rate: Rs. {entry.rate}
@@ -639,5 +646,25 @@ const styles = StyleSheet.create({
   },
   paymentAmount: {
     color: colors.success,
+  },
+  itemNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 3,
+  },
+  queuedBadge: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  queuedBadgeText: {
+    fontSize: 10,
+    color: '#B45309',
+    fontWeight: '700',
   },
 });

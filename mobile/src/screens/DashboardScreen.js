@@ -100,7 +100,14 @@ export default function DashboardScreen({ navigation }) {
           </View>
 
           <View style={styles.customerInfo}>
-            <Text style={styles.customerName}>{item.name}</Text>
+            <View style={styles.customerNameRow}>
+              <Text style={styles.customerName}>{item.name}</Text>
+              {(item.isLocal || (typeof item._id === 'string' && item._id.startsWith('local-'))) && (
+                <View style={styles.queuedBadge}>
+                  <Text style={styles.queuedBadgeText}>⏳ Queued</Text>
+                </View>
+              )}
+            </View>
             {item.phone ? (
               <Text style={styles.customerPhone}>📞 {item.phone}</Text>
             ) : null}
@@ -337,9 +344,28 @@ const styles = StyleSheet.create({
   customerInfo: {
     flex: 1,
   },
+  customerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 2,
+  },
   customerName: {
     ...typography.h3,
-    marginBottom: 2,
+  },
+  queuedBadge: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  queuedBadgeText: {
+    fontSize: 10,
+    color: '#B45309',
+    fontWeight: '700',
   },
   customerPhone: {
     ...typography.bodySmall,

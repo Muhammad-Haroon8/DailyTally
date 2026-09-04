@@ -81,6 +81,11 @@ export default function ManageItemsScreen({ navigation }) {
         <View style={styles.itemHeader}>
           <Text style={styles.itemIcon}>🥩</Text>
           <Text style={styles.itemName}>{item.name}</Text>
+          {(item.isLocal || (typeof item._id === 'string' && item._id.startsWith('local-'))) && (
+            <View style={styles.queuedBadge}>
+              <Text style={styles.queuedBadgeText}>⏳ Queued</Text>
+            </View>
+          )}
         </View>
         <Text style={styles.itemRate}>
           Default rate: <Text style={styles.rateHighlight}>Rs. {item.defaultRate}</Text>
@@ -219,11 +224,26 @@ const styles = StyleSheet.create({
   itemHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
     marginBottom: 4,
   },
   itemIcon: {
     fontSize: 16,
-    marginRight: 6,
+    marginRight: 2,
+  },
+  queuedBadge: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  queuedBadgeText: {
+    fontSize: 10,
+    color: '#B45309',
+    fontWeight: '700',
   },
   itemName: {
     ...typography.h3,
