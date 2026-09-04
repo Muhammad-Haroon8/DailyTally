@@ -37,6 +37,7 @@ export default function AddPaymentEntryScreen({ route, navigation }) {
 
   const handleDateChange = (event, selectedDate) => {
     setShowDatePicker(false);
+    if (event?.type === 'dismissed') return;
     if (selectedDate) {
       setDate(selectedDate);
     }
@@ -44,6 +45,7 @@ export default function AddPaymentEntryScreen({ route, navigation }) {
 
   const handleTimeChange = (event, selectedTime) => {
     setShowTimePicker(false);
+    if (event?.type === 'dismissed') return;
     if (selectedTime) {
       const formatted = selectedTime.toLocaleTimeString([], {
         hour: '2-digit',
