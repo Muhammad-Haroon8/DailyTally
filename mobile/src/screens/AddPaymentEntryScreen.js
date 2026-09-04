@@ -140,7 +140,6 @@ export default function AddPaymentEntryScreen({ route, navigation }) {
               value={date}
               mode="date"
               display="default"
-              onChange={handleDateChange}
               onValueChange={handleDateChange}
               onDismiss={() => setShowDatePicker(false)}
             />
@@ -151,7 +150,6 @@ export default function AddPaymentEntryScreen({ route, navigation }) {
               value={date}
               mode="time"
               display="default"
-              onChange={handleTimeChange}
               onValueChange={handleTimeChange}
               onDismiss={() => setShowTimePicker(false)}
             />

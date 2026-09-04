@@ -240,11 +240,6 @@ export default function SendReportModal({
                     if (event?.type === 'dismissed') return;
                     if (date) setStartDate(date);
                   }}
-                  onChange={(event, date) => {
-                    setShowStartPicker(false);
-                    if (event?.type === 'dismissed') return;
-                    if (date) setStartDate(date);
-                  }}
                   onDismiss={() => setShowStartPicker(false)}
                 />
               )}
@@ -255,11 +250,6 @@ export default function SendReportModal({
                   mode="date"
                   display="default"
                   onValueChange={(event, date) => {
-                    setShowEndPicker(false);
-                    if (event?.type === 'dismissed') return;
-                    if (date) setEndDate(date);
-                  }}
-                  onChange={(event, date) => {
                     setShowEndPicker(false);
                     if (event?.type === 'dismissed') return;
                     if (date) setEndDate(date);
