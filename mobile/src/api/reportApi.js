@@ -1,7 +1,7 @@
 // src/api/reportApi.js
 // API helper to request, download, and store PDF statements locally using FileSystem
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 import apiClient from './client';
 
