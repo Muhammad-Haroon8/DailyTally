@@ -282,7 +282,8 @@ const generateCustomerReportPdf = async (req, res) => {
     if (!res.headersSent) {
       return res.status(500).json({
         error: 'Server error while generating PDF report',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        details: error.message || String(error),
+        stack: error.stack,
       });
     }
   }
