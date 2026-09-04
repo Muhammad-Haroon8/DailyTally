@@ -3,7 +3,7 @@
 // Stores pending actions (create, update, delete for customers, items, entries)
 // and handles sequential queue processing, retries, and ID remapping.
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import storage from './storageAdapter';
 
 const QUEUE_STORAGE_KEY = '@daily_tally_offline_queue';
 
@@ -33,7 +33,7 @@ export const isLocalId = (id) => {
  */
 export const getQueue = async () => {
   try {
-    const raw = await AsyncStorage.getItem(QUEUE_STORAGE_KEY);
+    const raw = await storage.getItem(QUEUE_STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch (error) {
     console.error('Error reading offline queue:', error);
@@ -55,7 +55,7 @@ export const addToQueue = async (action) => {
       ...action,
     };
     queue.push(queuedAction);
-    await AsyncStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
+    await storage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
     console.log(`📥 [OfflineQueue] Enqueued action: ${queuedAction.type} (${queuedAction.id})`);
     return queuedAction;
   } catch (error) {
@@ -73,7 +73,7 @@ export const removeFromQueue = async (actionId) => {
   try {
     const queue = await getQueue();
     const updated = queue.filter((item) => item.id !== actionId);
-    await AsyncStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(updated));
+    await storage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(updated));
     console.log(`📤 [OfflineQueue] Removed action: ${actionId}`);
     return updated;
   } catch (error) {
@@ -87,7 +87,7 @@ export const removeFromQueue = async (actionId) => {
  */
 export const clearQueue = async () => {
   try {
-    await AsyncStorage.removeItem(QUEUE_STORAGE_KEY);
+    await storage.removeItem(QUEUE_STORAGE_KEY);
     console.log('🧹 [OfflineQueue] Queue cleared.');
   } catch (error) {
     console.error('Error clearing offline queue:', error);
@@ -146,7 +146,7 @@ export const remapQueueIds = async (tempId, realId) => {
     });
 
     if (hasChanges) {
-      await AsyncStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(updatedQueue));
+      await storage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(updatedQueue));
       console.log(`🔄 [OfflineQueue] Remapped ID from ${tempId} -> ${realId} across queued actions`);
     }
   } catch (error) {

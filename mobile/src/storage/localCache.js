@@ -2,7 +2,7 @@
 // Local Cache layer for Customers, Customer Details (Entries/Months/Balances), and Items.
 // Automatically calculates running balances and calendar month groupings matching the backend.
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import storage from './storageAdapter';
 
 const CACHE_KEY_CUSTOMERS = '@cache_customers';
 const CACHE_KEY_ITEMS = '@cache_items';
@@ -110,7 +110,7 @@ export const computeCustomerHisabFromEntries = (customer, rawEntries = []) => {
 
 export const getCachedCustomers = async () => {
   try {
-    const raw = await AsyncStorage.getItem(CACHE_KEY_CUSTOMERS);
+    const raw = await storage.getItem(CACHE_KEY_CUSTOMERS);
     return raw ? JSON.parse(raw) : null;
   } catch (err) {
     console.error('Error reading cached customers:', err);
@@ -120,7 +120,7 @@ export const getCachedCustomers = async () => {
 
 export const saveCachedCustomers = async (customers) => {
   try {
-    await AsyncStorage.setItem(CACHE_KEY_CUSTOMERS, JSON.stringify(customers));
+    await storage.setItem(CACHE_KEY_CUSTOMERS, JSON.stringify(customers));
   } catch (err) {
     console.error('Error saving cached customers:', err);
   }
@@ -152,7 +152,7 @@ export const removeCachedCustomer = async (customerId) => {
     const current = (await getCachedCustomers()) || [];
     const updated = current.filter((c) => c._id !== customerId);
     await saveCachedCustomers(updated);
-    await AsyncStorage.removeItem(getCustomerDetailKey(customerId));
+    await storage.removeItem(getCustomerDetailKey(customerId));
     return updated;
   } catch (err) {
     console.error('Error removing cached customer:', err);
@@ -165,7 +165,7 @@ export const removeCachedCustomer = async (customerId) => {
 
 export const getCachedCustomerDetail = async (customerId) => {
   try {
-    const raw = await AsyncStorage.getItem(getCustomerDetailKey(customerId));
+    const raw = await storage.getItem(getCustomerDetailKey(customerId));
     return raw ? JSON.parse(raw) : null;
   } catch (err) {
     console.error(`Error reading cached detail for customer ${customerId}:`, err);
@@ -175,7 +175,7 @@ export const getCachedCustomerDetail = async (customerId) => {
 
 export const saveCachedCustomerDetail = async (customerId, data) => {
   try {
-    await AsyncStorage.setItem(getCustomerDetailKey(customerId), JSON.stringify(data));
+    await storage.setItem(getCustomerDetailKey(customerId), JSON.stringify(data));
   } catch (err) {
     console.error(`Error saving cached detail for customer ${customerId}:`, err);
   }
@@ -278,7 +278,7 @@ export const deleteOptimisticEntry = async (customerId, entryId) => {
 
 export const getCachedItems = async () => {
   try {
-    const raw = await AsyncStorage.getItem(CACHE_KEY_ITEMS);
+    const raw = await storage.getItem(CACHE_KEY_ITEMS);
     return raw ? JSON.parse(raw) : null;
   } catch (err) {
     console.error('Error reading cached items:', err);
@@ -288,7 +288,7 @@ export const getCachedItems = async () => {
 
 export const saveCachedItems = async (items) => {
   try {
-    await AsyncStorage.setItem(CACHE_KEY_ITEMS, JSON.stringify(items));
+    await storage.setItem(CACHE_KEY_ITEMS, JSON.stringify(items));
   } catch (err) {
     console.error('Error saving cached items:', err);
   }
@@ -366,7 +366,7 @@ export const replaceEntityIdInCache = async (tempId, realId) => {
       };
       // Save under new key and remove old
       await saveCachedCustomerDetail(realId, updatedDetail);
-      await AsyncStorage.removeItem(getCustomerDetailKey(tempId));
+      await storage.removeItem(getCustomerDetailKey(tempId));
     }
 
     // 3. Update Master items list if tempId belongs to an item
