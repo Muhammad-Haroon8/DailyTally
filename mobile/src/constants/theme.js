@@ -64,7 +64,7 @@ export const spacing = {
 
 export const cardStyles = {
   borderRadius: 16,
-  padding: 16,
+  padding: 14,
   backgroundColor: colors.cardBackground,
   borderWidth: 1,
   borderColor: colors.border,
