@@ -28,7 +28,7 @@ export default function AddItemEntryScreen({ route, navigation }) {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [timeString, setTimeString] = useState(
     entry?.entryTime ||
-      new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   );
 
   const [selectedItem, setSelectedItem] = useState(
@@ -129,7 +129,7 @@ export default function AddItemEntryScreen({ route, navigation }) {
       >
         <Card style={styles.card}>
           <Text style={styles.title}>
-            {isEditing ? 'Edit Item Entry' : 'Add Item (Udhaar)'}
+            {isEditing ? 'Edit Item Entry' : 'Add Item'}
           </Text>
           <Text style={styles.customerSubtitle}>Gahak: {customerName}</Text>
 

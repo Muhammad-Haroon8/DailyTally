@@ -17,11 +17,9 @@ import PrimaryButton from '../components/PrimaryButton';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { colors, typography, spacing } from '../constants/theme';
-import { useAuth } from '../context/AuthContext';
 import { getCustomers } from '../api/customerApi';
 
 export default function DashboardScreen({ navigation }) {
-  const { user, logout } = useAuth();
 
   const [customers, setCustomers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,21 +61,6 @@ export default function DashboardScreen({ navigation }) {
 
     return () => clearTimeout(timer);
   }, [searchQuery, fetchCustomerList]);
-
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout Confirmation',
-      'Kya aap waqai logout karna chahte hain?',
-      [
-        { text: 'Nahi', style: 'cancel' },
-        {
-          text: 'Haan, Logout',
-          style: 'destructive',
-          onPress: logout,
-        },
-      ]
-    );
-  };
 
   const renderCustomerItem = ({ item }) => {
     const balance = item.balance || 0;
@@ -135,19 +118,22 @@ export default function DashboardScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Header with Welcome and Logout */}
+      {/* Top Action Buttons Bar */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Welcome, {user?.name || 'Papa'}</Text>
-          <Text style={styles.subtitle}>Karobar Hisab</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+        <PrimaryButton
+          title="Manage Items"
+          icon="📦"
+          variant="outline"
+          onPress={() => navigation.navigate('ManageItems')}
+          style={styles.manageItemsButton}
+        />
+
+        <PrimaryButton
+          title="+ Add Gahak"
+          variant="primary"
+          onPress={() => navigation.navigate('AddEditCustomer')}
+          style={styles.addButton}
+        />
       </View>
 
       {/* Search Bar */}
@@ -225,24 +211,6 @@ export default function DashboardScreen({ navigation }) {
           }
         />
       )}
-
-      {/* Action Buttons Bar */}
-      <View style={styles.bottomBar}>
-        <PrimaryButton
-          title="Manage Items"
-          icon="📦"
-          variant="outline"
-          onPress={() => navigation.navigate('ManageItems')}
-          style={styles.manageItemsButton}
-        />
-
-        <PrimaryButton
-          title="+ Add Gahak"
-          variant="primary"
-          onPress={() => navigation.navigate('AddEditCustomer')}
-          style={styles.addButton}
-        />
-      </View>
     </View>
   );
 }
@@ -254,33 +222,22 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing.sm,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
     paddingBottom: spacing.md,
     backgroundColor: colors.cardBackground,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  greeting: {
-    ...typography.h2,
+  manageItemsButton: {
+    flex: 1,
+    paddingVertical: 12,
   },
-  subtitle: {
-    ...typography.bodySmall,
-  },
-  logoutButton: {
-    backgroundColor: colors.dangerLight,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.danger,
-  },
-  logoutText: {
-    color: colors.danger,
-    fontSize: 13,
-    fontWeight: '600',
+  addButton: {
+    flex: 1.2,
+    paddingVertical: 12,
   },
   searchContainer: {
     paddingHorizontal: spacing.lg,
@@ -315,7 +272,7 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: spacing.lg,
-    paddingBottom: 90,
+    paddingBottom: spacing.xxl,
   },
   emptyListContainer: {
     flexGrow: 1,
@@ -415,19 +372,5 @@ const styles = StyleSheet.create({
   retryButton: {
     paddingVertical: 8,
     alignSelf: 'center',
-  },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 18,
-    left: spacing.lg,
-    right: spacing.lg,
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  manageItemsButton: {
-    flex: 1,
-  },
-  addButton: {
-    flex: 1.2,
   },
 });

@@ -141,7 +141,7 @@ export default function SendReportModal({
           {/* Modal Header */}
           <View style={styles.headerRow}>
             <View>
-              <Text style={styles.modalTitle}>📄 Report Bhejein (PDF)</Text>
+              <Text style={styles.modalTitle}>📄 Generate Report (PDF)</Text>
               <Text style={styles.modalSubtitle}>Gahak: {customerName}</Text>
             </View>
             <TouchableOpacity onPress={onClose} disabled={isProcessing} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>

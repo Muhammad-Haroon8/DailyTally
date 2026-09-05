@@ -2,7 +2,7 @@
 // Dynamic Navigation Stack with Auth screens and App screens (Dashboard, AddEditCustomer, CustomerDetail)
 
 import React from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
@@ -17,6 +17,7 @@ import ManageItemsScreen from '../screens/ManageItemsScreen';
 import AddEditItemScreen from '../screens/AddEditItemScreen';
 import AddItemEntryScreen from '../screens/AddItemEntryScreen';
 import AddPaymentEntryScreen from '../screens/AddPaymentEntryScreen';
+import ProfileDropdownMenu from '../components/ProfileDropdownMenu';
 import { colors } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
 
@@ -57,10 +58,11 @@ export default function AppNavigator() {
           <Stack.Screen
             name="Home"
             component={HomeScreen}
-            options={{
+            options={({ navigation }) => ({
               title: 'DailyTally - Karobar Hisab',
               headerBackVisible: false,
-            }}
+              headerRight: () => <ProfileDropdownMenu navigation={navigation} />,
+            })}
           />
           <Stack.Screen
             name="Dashboard"
@@ -122,7 +124,7 @@ export default function AppNavigator() {
             name="AddItemEntry"
             component={AddItemEntryScreen}
             options={({ route }) => ({
-              title: route.params?.entry ? 'Edit Item Entry' : 'Add Item (Udhaar)',
+              title: route.params?.entry ? 'Edit Item Entry' : 'Add Item',
             })}
           />
           <Stack.Screen

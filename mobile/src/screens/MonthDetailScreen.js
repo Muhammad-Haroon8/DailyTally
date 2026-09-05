@@ -232,14 +232,14 @@ export default function MonthDetailScreen({ route, navigation }) {
             onPress={() => setIsReportModalVisible(true)}
             activeOpacity={0.8}
           >
-            <Text style={styles.monthReportButtonText}>📄 Report Bhejein</Text>
+            <Text style={styles.monthReportButtonText}>📄 Report</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Month Financial Overview Stats: Kul Udhaar, Kul Wasool, Net & Closing */}
+        {/* Month Financial Overview Stats: Is Mahine Ka Udhaar, Wasool, Net & Closing */}
         <View style={styles.overviewStatsRow}>
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Kul Udhaar</Text>
+            <Text style={styles.statLabel}>Is Mahine Ka Udhaar</Text>
             <Text style={[styles.statValue, styles.statValueDebit]}>
               Rs. {(monthData?.monthUdhaar || 0).toLocaleString()}
             </Text>
@@ -248,7 +248,7 @@ export default function MonthDetailScreen({ route, navigation }) {
           <View style={styles.statDivider} />
 
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Kul Wasool</Text>
+            <Text style={styles.statLabel}>Is Mahine Ka Wasool</Text>
             <Text style={[styles.statValue, styles.statValueCredit]}>
               Rs. {(monthData?.monthWasool || 0).toLocaleString()}
             </Text>
@@ -257,7 +257,7 @@ export default function MonthDetailScreen({ route, navigation }) {
           <View style={styles.statDivider} />
 
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Month Net</Text>
+            <Text style={styles.statLabel}>Is Mahine Ka Net</Text>
             <Text
               style={[
                 styles.statValue,
@@ -271,7 +271,7 @@ export default function MonthDetailScreen({ route, navigation }) {
           <View style={styles.statDivider} />
 
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Closing</Text>
+            <Text style={styles.statLabel}>Closing Balance</Text>
             <Text style={[styles.statValue, styles.statValuePrimary]}>
               Rs. {(monthData?.closingBalance || 0).toLocaleString()}
             </Text>
@@ -281,7 +281,7 @@ export default function MonthDetailScreen({ route, navigation }) {
         {/* Action Buttons: Add Item vs Wasool Raqam */}
         <View style={styles.buttonsRow}>
           <PrimaryButton
-            title="Add Item (Udhaar)"
+            title="Add Item"
             icon="📦"
             variant="accent"
             onPress={() =>
@@ -384,8 +384,8 @@ export default function MonthDetailScreen({ route, navigation }) {
             daySection.dayTotal > 0
               ? styles.dayTotalDebit
               : daySection.dayTotal < 0
-              ? styles.dayTotalCredit
-              : styles.dayTotalNeutral,
+                ? styles.dayTotalCredit
+                : styles.dayTotalNeutral,
           ]}
         >
           Day net: {daySection.dayTotal >= 0 ? `Rs. ${daySection.dayTotal.toLocaleString()}` : `- Rs. ${Math.abs(daySection.dayTotal).toLocaleString()}`}
@@ -576,10 +576,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textSecondary,
     marginBottom: 4,
-    fontWeight: '500',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   statValue: {
     fontSize: 16,

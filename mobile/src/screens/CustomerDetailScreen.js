@@ -111,8 +111,8 @@ export default function CustomerDetailScreen({ route, navigation }) {
                 monthItem.closingBalance > 0
                   ? styles.textDebit
                   : monthItem.closingBalance < 0
-                  ? styles.textCredit
-                  : styles.textNeutral,
+                    ? styles.textCredit
+                    : styles.textNeutral,
               ]}
             >
               Rs. {Math.abs(monthItem.closingBalance).toLocaleString()}
@@ -148,7 +148,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
               onPress={() => setIsReportModalVisible(true)}
               activeOpacity={0.8}
             >
-              <Text style={styles.reportButtonText}>📄 Report Bhejein</Text>
+              <Text style={styles.reportButtonText}>📄 Report</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -194,8 +194,8 @@ export default function CustomerDetailScreen({ route, navigation }) {
                 balance > 0
                   ? styles.balanceDanger
                   : balance < 0
-                  ? styles.balanceCredit
-                  : styles.balanceZero,
+                    ? styles.balanceCredit
+                    : styles.balanceZero,
               ]}
             >
               Rs. {Math.abs(balance).toLocaleString()}
@@ -207,7 +207,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
         {/* Action Buttons: ALWAYS VISIBLE Add Item & Wasool Raqam */}
         <View style={styles.actionButtonsRow}>
           <PrimaryButton
-            title="Add Item (Udhaar)"
+            title="Add Item"
             icon="📦"
             variant="accent"
             onPress={() =>
@@ -232,6 +232,15 @@ export default function CustomerDetailScreen({ route, navigation }) {
             style={styles.customerActionBtn}
           />
         </View>
+
+        {/* Manage Items Catalog quick access link */}
+        <TouchableOpacity
+          style={styles.manageItemsQuickLink}
+          onPress={() => navigation.navigate('ManageItems')}
+          activeOpacity={0.75}
+        >
+          <Text style={styles.manageItemsQuickLinkText}>📦 Manage Items Catalog (Rates & Naye Items) ›</Text>
+        </TouchableOpacity>
 
         {/* Monthly Activity Summary Pill */}
         <View style={styles.summaryPillRow}>
@@ -463,11 +472,24 @@ const styles = StyleSheet.create({
   actionButtonsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-    marginBottom: spacing.md,
+    marginBottom: spacing.xs,
   },
   customerActionBtn: {
     flex: 1,
     paddingVertical: 12,
+  },
+  manageItemsQuickLink: {
+    alignSelf: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginBottom: spacing.md,
+    backgroundColor: colors.primaryLight,
+    borderRadius: 8,
+  },
+  manageItemsQuickLinkText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
   },
   summaryPillRow: {
     flexDirection: 'row',

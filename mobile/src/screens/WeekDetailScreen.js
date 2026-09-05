@@ -229,7 +229,7 @@ export default function WeekDetailScreen({ route, navigation }) {
               onPress={() => setIsReportModalVisible(true)}
               activeOpacity={0.8}
             >
-              <Text style={styles.weekReportButtonText}>📄 Report Bhejein</Text>
+              <Text style={styles.weekReportButtonText}>📄 Report</Text>
             </TouchableOpacity>
             <View style={styles.countBadge}>
               <Text style={styles.countBadgeText}>{weeklyTotals.count} {weeklyTotals.count === 1 ? 'entry' : 'entries'}</Text>
@@ -239,7 +239,7 @@ export default function WeekDetailScreen({ route, navigation }) {
 
         <View style={styles.overviewStatsRow}>
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Kul Udhaar (Items)</Text>
+            <Text style={styles.statLabel}>Is Hafte Ka Udhaar</Text>
             <Text style={[styles.statValue, styles.statValueDebit]}>
               Rs. {weeklyTotals.totalUdhaar.toLocaleString()}
             </Text>
@@ -248,7 +248,7 @@ export default function WeekDetailScreen({ route, navigation }) {
           <View style={styles.statDivider} />
 
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Kul Wasool (Cash)</Text>
+            <Text style={styles.statLabel}>Is Hafte Ka Wasool</Text>
             <Text style={[styles.statValue, styles.statValueCredit]}>
               Rs. {weeklyTotals.totalWasool.toLocaleString()}
             </Text>
@@ -257,15 +257,15 @@ export default function WeekDetailScreen({ route, navigation }) {
           <View style={styles.statDivider} />
 
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Week Net</Text>
+            <Text style={styles.statLabel}>Is Hafte Ka Net</Text>
             <Text
               style={[
                 styles.statValue,
                 weeklyTotals.net > 0
                   ? styles.statValueDebit
                   : weeklyTotals.net < 0
-                  ? styles.statValueCredit
-                  : styles.statValueNeutral,
+                    ? styles.statValueCredit
+                    : styles.statValueNeutral,
               ]}
             >
               {weeklyTotals.net >= 0 ? `+Rs. ${weeklyTotals.net.toLocaleString()}` : `-Rs. ${Math.abs(weeklyTotals.net).toLocaleString()}`}
@@ -292,8 +292,8 @@ export default function WeekDetailScreen({ route, navigation }) {
             daySection.dayTotal > 0
               ? styles.dayTotalDebit
               : daySection.dayTotal < 0
-              ? styles.dayTotalCredit
-              : styles.dayTotalNeutral,
+                ? styles.dayTotalCredit
+                : styles.dayTotalNeutral,
           ]}
         >
           Day net: {daySection.dayTotal >= 0 ? `Rs. ${daySection.dayTotal.toLocaleString()}` : `- Rs. ${Math.abs(daySection.dayTotal).toLocaleString()}`}

@@ -170,9 +170,9 @@ export default function ProfileScreen({ navigation }) {
         <Text style={styles.userRoleSubtitle}>Karobar Account Owner</Text>
       </View>
 
-      {/* Section 1: Update Profile */}
+      {/* Consolidated Profile Details (Name, Phone, Read-only Email) */}
       <Card style={styles.card}>
-        <Text style={styles.cardTitle}>👤 Shakhsi Maloomat (Profile Details)</Text>
+        <Text style={styles.cardTitle}>👤 Profile Details</Text>
 
         {isLoadingProfile && (
           <ActivityIndicator size="small" color={colors.primary} style={{ marginBottom: 12 }} />
