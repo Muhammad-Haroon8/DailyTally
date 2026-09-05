@@ -115,7 +115,114 @@ const login = async (req, res) => {
   }
 };
 
+/**
+ * Returns currently logged-in user profile
+ * GET /api/auth/me
+ */
+const getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('-passwordHash');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    return res.status(200).json({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone || '',
+      role: 'owner',
+    });
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return res.status(500).json({ error: 'Server error while fetching profile' });
+  }
+};
+
+/**
+ * Updates user name and phone ONLY. Email is strictly read-only and cannot be changed.
+ * PUT /api/auth/profile
+ */
+const updateProfile = async (req, res) => {
+  try {
+    const { name, phone } = req.body;
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (name !== undefined) {
+      if (!name || !name.trim()) {
+        return res.status(400).json({ error: 'Name cannot be empty' });
+      }
+      user.name = name.trim();
+    }
+
+    if (phone !== undefined) {
+      user.phone = phone ? phone.trim() : '';
+    }
+
+    await user.save();
+
+    return res.status(200).json({
+      message: 'Profile kamyabi se update ho gaya',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        role: 'owner',
+      },
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    return res.status(500).json({ error: 'Server error while updating profile' });
+  }
+};
+
+/**
+ * Changes user password with current password verification and length check
+ * PUT /api/auth/change-password
+ */
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password aur new password dono lazmi hain' });
+    }
+
+    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ error: 'Naya password kam az kam 6 characters ka hona chahiye' });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Maujooda (current) password theek nahi hai' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.passwordHash = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    return res.status(200).json({ message: 'Password kamyabi se tabdeel ho gaya' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    return res.status(500).json({ error: 'Server error while changing password' });
+  }
+};
+
 module.exports = {
   signup,
   login,
+  getMe,
+  updateProfile,
+  changePassword,
 };
+

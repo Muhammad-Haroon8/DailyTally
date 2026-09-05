@@ -91,7 +91,20 @@ export const AuthProvider = ({ children }) => {
     return receivedUser;
   };
 
-
+  /**
+   * Updates current user object in state and SecureStore
+   */
+  const updateUser = async (updatedUserData) => {
+    try {
+      const mergedUser = { ...user, ...updatedUserData };
+      await SecureStore.setItemAsync(USER_KEY, JSON.stringify(mergedUser));
+      setUser(mergedUser);
+      return mergedUser;
+    } catch (error) {
+      console.error('Error updating user in SecureStore:', error);
+      setUser((prev) => ({ ...prev, ...updatedUserData }));
+    }
+  };
 
   return (
     <AuthContext.Provider
@@ -102,6 +115,7 @@ export const AuthProvider = ({ children }) => {
         signup,
         login,
         logout,
+        updateUser,
       }}
     >
       {children}

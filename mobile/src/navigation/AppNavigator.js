@@ -6,6 +6,8 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
+import HomeScreen from '../screens/HomeScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import AddEditCustomerScreen from '../screens/AddEditCustomerScreen';
 import CustomerDetailScreen from '../screens/CustomerDetailScreen';
@@ -36,6 +38,7 @@ export default function AppNavigator() {
 
   return (
     <Stack.Navigator
+      initialRouteName="Home"
       screenOptions={{
         headerStyle: {
           backgroundColor: colors.primary,
@@ -52,11 +55,25 @@ export default function AppNavigator() {
       {isAuthenticated ? (
         <>
           <Stack.Screen
+            name="Home"
+            component={HomeScreen}
+            options={{
+              title: 'DailyTally - Karobar Hisab',
+              headerBackVisible: false,
+            }}
+          />
+          <Stack.Screen
             name="Dashboard"
             component={DashboardScreen}
             options={{
-              title: 'Karobar Hisab',
-              headerBackVisible: false,
+              title: 'Customer Udhaar List',
+            }}
+          />
+          <Stack.Screen
+            name="Profile"
+            component={ProfileScreen}
+            options={{
+              title: 'My Profile',
             }}
           />
           <Stack.Screen

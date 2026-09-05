@@ -574,17 +574,17 @@ const styles = StyleSheet.create({
   },
   entryLeftCol: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'flex-start',
   },
   entryTypePill: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
-    marginRight: spacing.sm,
-    marginTop: 2,
+    marginBottom: 4,
   },
   itemPill: {
     backgroundColor: colors.dangerLight,

@@ -114,6 +114,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     textAlign: 'center',
+    flexShrink: 1,
   },
   solidText: {
     color: '#FFFFFF',
@@ -124,5 +125,6 @@ const styles = StyleSheet.create({
   iconStyle: {
     fontSize: 16,
     marginRight: 4,
+    flexShrink: 0,
   },
 });

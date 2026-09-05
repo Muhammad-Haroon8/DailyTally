@@ -194,6 +194,8 @@ const getEntriesByCustomer = async (req, res) => {
           monthLabel: `${monthNames[monthNum]} ${year}`,
           entries: [],
           monthNet: 0,
+          monthUdhaar: 0,
+          monthWasool: 0,
         });
       }
 
@@ -202,8 +204,10 @@ const getEntriesByCustomer = async (req, res) => {
 
       if (entry.type === 'item') {
         monthGroup.monthNet += entry.amount;
+        monthGroup.monthUdhaar += entry.amount;
       } else {
         monthGroup.monthNet -= entry.amount;
+        monthGroup.monthWasool += entry.amount;
       }
     });
 
@@ -229,6 +233,8 @@ const getEntriesByCustomer = async (req, res) => {
         monthLabel: m.monthLabel,
         openingBalance,
         monthNet,
+        monthUdhaar: Math.round(m.monthUdhaar * 100) / 100,
+        monthWasool: Math.round(m.monthWasool * 100) / 100,
         closingBalance,
         entries: displayEntries,
       };
@@ -237,6 +243,19 @@ const getEntriesByCustomer = async (req, res) => {
     // 3. For display on mobile: reverse so newest month is first
     const monthsNewestFirst = [...processedMonths].reverse();
 
+    // Compute overall customer lifetime Udhaar & Wasool
+    let customerTotalUdhaar = 0;
+    let customerTotalWasool = 0;
+    allEntries.forEach((entry) => {
+      if (entry.type === 'item') {
+        customerTotalUdhaar += entry.amount;
+      } else {
+        customerTotalWasool += entry.amount;
+      }
+    });
+    customerTotalUdhaar = Math.round(customerTotalUdhaar * 100) / 100;
+    customerTotalWasool = Math.round(customerTotalWasool * 100) / 100;
+
     const overallBalance = await getCustomerBalance(customer._id);
 
     return res.status(200).json({
@@ -244,6 +263,8 @@ const getEntriesByCustomer = async (req, res) => {
         id: customer._id,
         name: customer.name,
         phone: customer.phone,
+        totalUdhaar: customerTotalUdhaar,
+        totalWasool: customerTotalWasool,
         balance: overallBalance,
       },
       months: monthsNewestFirst,

@@ -60,6 +60,36 @@ const getCustomers = async (req, res) => {
       },
       {
         $addFields: {
+          totalUdhaar: {
+            $sum: {
+              $map: {
+                input: '$customerEntries',
+                as: 'e',
+                in: {
+                  $cond: [
+                    { $eq: ['$$e.type', 'item'] },
+                    '$$e.amount',
+                    0,
+                  ],
+                },
+              },
+            },
+          },
+          totalWasool: {
+            $sum: {
+              $map: {
+                input: '$customerEntries',
+                as: 'e',
+                in: {
+                  $cond: [
+                    { $eq: ['$$e.type', 'payment'] },
+                    '$$e.amount',
+                    0,
+                  ],
+                },
+              },
+            },
+          },
           balance: {
             $sum: {
               $map: {
@@ -115,6 +145,36 @@ const getCustomerById = async (req, res) => {
       },
       {
         $addFields: {
+          totalUdhaar: {
+            $sum: {
+              $map: {
+                input: '$customerEntries',
+                as: 'e',
+                in: {
+                  $cond: [
+                    { $eq: ['$$e.type', 'item'] },
+                    '$$e.amount',
+                    0,
+                  ],
+                },
+              },
+            },
+          },
+          totalWasool: {
+            $sum: {
+              $map: {
+                input: '$customerEntries',
+                as: 'e',
+                in: {
+                  $cond: [
+                    { $eq: ['$$e.type', 'payment'] },
+                    '$$e.amount',
+                    0,
+                  ],
+                },
+              },
+            },
+          },
           balance: {
             $sum: {
               $map: {

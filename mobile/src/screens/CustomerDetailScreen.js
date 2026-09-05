@@ -163,22 +163,74 @@ export default function CustomerDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Big Balance Display */}
-        <View style={styles.balanceContainer}>
-          <Text style={styles.balanceLabel}>Kul Baqaya (Total Balance):</Text>
-          <Text
-            style={[
-              styles.balanceValue,
-              balance > 0
-                ? styles.balanceDanger
-                : balance < 0
-                ? styles.balanceCredit
-                : styles.balanceZero,
-            ]}
-          >
-            Rs. {Math.abs(balance).toLocaleString()}
-            {balance > 0 ? ' (Baqaya)' : balance < 0 ? ' (Advance/Jama)' : ' (Be-baaq)'}
-          </Text>
+        {/* Financial Summary: Kul Udhaar, Kul Wasool & Baqi Baqaya */}
+        <View style={styles.financialSummaryCard}>
+          <View style={styles.financialColsRow}>
+            {/* Kul Udhaar */}
+            <View style={styles.financialCol}>
+              <Text style={styles.financialLabel}>Kul Udhaar (Items)</Text>
+              <Text style={[styles.financialValue, styles.textDebit]}>
+                Rs. {(customer.totalUdhaar || 0).toLocaleString()}
+              </Text>
+            </View>
+
+            <View style={styles.financialDivider} />
+
+            {/* Kul Wasool */}
+            <View style={styles.financialCol}>
+              <Text style={styles.financialLabel}>Kul Wasool (Paid)</Text>
+              <Text style={[styles.financialValue, styles.textCredit]}>
+                Rs. {(customer.totalWasool || 0).toLocaleString()}
+              </Text>
+            </View>
+          </View>
+
+          {/* Baqi Baqaya (Remaining Balance) Highlight Bar */}
+          <View style={styles.balanceHighlightBar}>
+            <Text style={styles.balanceHighlightLabel}>Baqi Baqaya (Net Balance):</Text>
+            <Text
+              style={[
+                styles.balanceHighlightValue,
+                balance > 0
+                  ? styles.balanceDanger
+                  : balance < 0
+                  ? styles.balanceCredit
+                  : styles.balanceZero,
+              ]}
+            >
+              Rs. {Math.abs(balance).toLocaleString()}
+              {balance > 0 ? ' (Baqaya)' : balance < 0 ? ' (Advance/Jama)' : ' (Saaf)'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Action Buttons: ALWAYS VISIBLE Add Item & Wasool Raqam */}
+        <View style={styles.actionButtonsRow}>
+          <PrimaryButton
+            title="Add Item (Udhaar)"
+            icon="📦"
+            variant="accent"
+            onPress={() =>
+              navigation.navigate('AddItemEntry', {
+                customerId,
+                customerName: customer.name,
+              })
+            }
+            style={styles.customerActionBtn}
+          />
+
+          <PrimaryButton
+            title="Wasool Raqam"
+            icon="💵"
+            variant="success"
+            onPress={() =>
+              navigation.navigate('AddPaymentEntry', {
+                customerId,
+                customerName: customer.name,
+              })
+            }
+            style={styles.customerActionBtn}
+          />
         </View>
 
         {/* Monthly Activity Summary Pill */}
@@ -252,7 +304,7 @@ export default function CustomerDetailScreen({ route, navigation }) {
             <EmptyState
               icon="📝"
               title="Abhi koi entry nahi hui"
-              subtitle="Upar diye gaye buttons se 'Add Item' ya 'Wasool Raqam' shuru karein."
+              subtitle="Upar diye gaye buttons 'Add Item' ya 'Wasool Raqam' se pehli entry shuru karein."
             />
           }
         />
@@ -348,24 +400,56 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  balanceContainer: {
-    backgroundColor: colors.background,
+  financialSummaryCard: {
+    backgroundColor: '#FAF9F6',
     borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.lg,
-    marginVertical: spacing.md,
-    alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
+    padding: spacing.md,
+    marginVertical: spacing.md,
   },
-  balanceLabel: {
-    fontSize: 13,
+  financialColsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  financialCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  financialLabel: {
+    fontSize: 12,
     color: colors.textSecondary,
-    fontWeight: '500',
+    fontWeight: '600',
     marginBottom: 4,
   },
-  balanceValue: {
-    ...typography.amountLarge,
+  financialValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  financialDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: colors.border,
+  },
+  balanceHighlightBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: spacing.sm,
+    paddingHorizontal: 4,
+  },
+  balanceHighlightLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  balanceHighlightValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   balanceDanger: {
     color: colors.danger,
@@ -375,6 +459,15 @@ const styles = StyleSheet.create({
   },
   balanceZero: {
     color: colors.textPrimary,
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  customerActionBtn: {
+    flex: 1,
+    paddingVertical: 12,
   },
   summaryPillRow: {
     flexDirection: 'row',

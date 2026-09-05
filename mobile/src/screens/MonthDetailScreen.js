@@ -236,13 +236,32 @@ export default function MonthDetailScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
 
+        {/* Month Financial Overview Stats: Kul Udhaar, Kul Wasool, Net & Closing */}
         <View style={styles.overviewStatsRow}>
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Month Net Hisab</Text>
+            <Text style={styles.statLabel}>Kul Udhaar</Text>
+            <Text style={[styles.statValue, styles.statValueDebit]}>
+              Rs. {(monthData?.monthUdhaar || 0).toLocaleString()}
+            </Text>
+          </View>
+
+          <View style={styles.statDivider} />
+
+          <View style={styles.statBox}>
+            <Text style={styles.statLabel}>Kul Wasool</Text>
+            <Text style={[styles.statValue, styles.statValueCredit]}>
+              Rs. {(monthData?.monthWasool || 0).toLocaleString()}
+            </Text>
+          </View>
+
+          <View style={styles.statDivider} />
+
+          <View style={styles.statBox}>
+            <Text style={styles.statLabel}>Month Net</Text>
             <Text
               style={[
                 styles.statValue,
-                (monthData?.monthNet || 0) > 0 ? styles.statValueDebit : styles.statValueCredit,
+                (monthData?.monthNet || 0) > 0 ? styles.statValueDebit : (monthData?.monthNet || 0) < 0 ? styles.statValueCredit : styles.statValueNeutral,
               ]}
             >
               {(monthData?.monthNet || 0) >= 0 ? `+Rs. ${(monthData?.monthNet || 0).toLocaleString()}` : `-Rs. ${Math.abs(monthData?.monthNet || 0).toLocaleString()}`}
@@ -252,7 +271,7 @@ export default function MonthDetailScreen({ route, navigation }) {
           <View style={styles.statDivider} />
 
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Closing Balance</Text>
+            <Text style={styles.statLabel}>Closing</Text>
             <Text style={[styles.statValue, styles.statValuePrimary]}>
               Rs. {(monthData?.closingBalance || 0).toLocaleString()}
             </Text>
@@ -318,19 +337,20 @@ export default function MonthDetailScreen({ route, navigation }) {
                     customerName,
                     monthKey,
                     monthLabel: monthData?.monthLabel,
-                    weekNum: w.weekNum,
-                    startDay: w.startDay,
-                    endDay: w.endDay,
                     weekLabel: w.label,
                     dateRange: w.dateRange,
+                    weekNum: w.weekNum,
                   })
                 }
               >
                 <Card style={styles.weekCard}>
-                  <View style={styles.weekCardTop}>
-                    <Text style={styles.weekLabel}>{w.label}</Text>
-                    <Text style={styles.weekDateRange}>{w.dateRange}</Text>
+                  <View style={styles.weekCardHeader}>
+                    <Text style={styles.weekLabelText}>{w.label}</Text>
+                    <View style={styles.entryCountBadge}>
+                      <Text style={styles.entryCountBadgeText}>{w.count}</Text>
+                    </View>
                   </View>
+                  <Text style={styles.weekDateRangeText}>{w.dateRange}</Text>
                   <Text
                     style={[
                       styles.weekNetText,
@@ -339,10 +359,6 @@ export default function MonthDetailScreen({ route, navigation }) {
                   >
                     {w.net >= 0 ? `+Rs. ${w.net.toLocaleString()}` : `-Rs. ${Math.abs(w.net).toLocaleString()}`}
                   </Text>
-                  <View style={styles.weekCardBottomRow}>
-                    <Text style={styles.weekEntriesCount}>{w.count} {w.count === 1 ? 'entry' : 'entries'}</Text>
-                    <Text style={styles.weekViewDetailsText}>Kholein →</Text>
-                  </View>
                 </Card>
               </TouchableOpacity>
             ))}
@@ -376,7 +392,7 @@ export default function MonthDetailScreen({ route, navigation }) {
         </Text>
       </View>
 
-      {/* Entry Rows: Flex Direction COLUMN for descriptive details */}
+      {/* Entry Rows: Type badge on top, Title/details below, Time at bottom */}
       {daySection.items.map((entry) => {
         const isItem = entry.type === 'item';
         return (
@@ -386,9 +402,9 @@ export default function MonthDetailScreen({ route, navigation }) {
             onPress={() => handleEntryActions(entry)}
             activeOpacity={0.7}
           >
-            {/* Left Column: Type pill + vertical details */}
+            {/* Left Column: Vertical stack: 1. Type Badge, 2. Title/details, 3. Time */}
             <View style={styles.entryLeftCol}>
-              {/* Type Pill */}
+              {/* 1. Type Badge on TOP */}
               <View
                 style={[
                   styles.entryTypePill,
@@ -406,7 +422,7 @@ export default function MonthDetailScreen({ route, navigation }) {
                 </Text>
               </View>
 
-              {/* Stacked Details (flexDirection: column) to prevent cramped text */}
+              {/* 2. Title / details BELOW Type */}
               <View style={styles.entryDetailsColumn}>
                 <View style={styles.itemNameRow}>
                   <Text style={styles.entryItemNameText}>
@@ -426,6 +442,8 @@ export default function MonthDetailScreen({ route, navigation }) {
                 {entry.note ? (
                   <Text style={styles.entryNoteText}>📝 {entry.note}</Text>
                 ) : null}
+
+                {/* 3. Time at the bottom */}
                 {entry.entryTime ? (
                   <Text style={styles.entryTimeText}>⏰ {entry.entryTime}</Text>
                 ) : null}
@@ -740,17 +758,17 @@ const styles = StyleSheet.create({
   },
   entryLeftCol: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'flex-start',
   },
   entryTypePill: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
-    marginRight: spacing.sm,
-    marginTop: 2,
+    marginBottom: 4,
   },
   itemPill: {
     backgroundColor: colors.dangerLight,
