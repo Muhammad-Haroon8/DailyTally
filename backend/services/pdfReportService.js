@@ -307,7 +307,7 @@ const generateReportPdf = async (reportData) => {
 
   let closingTitle = 'CLOSING BALANCE';
   if (isWholesaler) {
-    closingTitle = (totals.closingBalance || 0) >= 0 ? 'BAQI BAQAYA (TOTAL DENA HAI)' : 'WASOOLI ZIYADA (CREDIT)';
+    closingTitle = (totals.closingBalance || 0) >= 0 ? 'TOTAL BAQAYA' : 'WASOOLI ZIYADA (CREDIT)';
   }
 
   doc.fillColor('#FFFFFF').fontSize(10).font(fontBold)

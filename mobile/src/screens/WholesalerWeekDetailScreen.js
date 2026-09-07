@@ -28,7 +28,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import UpdatingIndicator from '../components/UpdatingIndicator';
 import EntryTypeFilter from '../components/EntryTypeFilter';
 import { colors, typography, spacing } from '../constants/theme';
-import { getEntriesByWholesaler, deleteWholesalerEntry, createWholesalerEntry } from '../api/wholesalerEntryApi';
+import { getEntriesByWholesaler, deleteWholesalerEntry, createWholesalerEntry, updateWholesalerEntry } from '../api/wholesalerEntryApi';
 import { getWholesalerById } from '../api/wholesalerApi';
 import { getCachedWholesalerDetail } from '../storage/localCache';
 import * as Sharing from 'expo-sharing';
@@ -51,6 +51,7 @@ export default function WholesalerWeekDetailScreen({ route, navigation }) {
   const [isReportGenerating, setIsReportGenerating] = useState(false);
   const [advanceBaqi, setAdvanceBaqi] = useState(0);
   const [isAdjustModalVisible, setIsAdjustModalVisible] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
   const [adjustAmount, setAdjustAmount] = useState('');
   const [adjustDate, setAdjustDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -163,6 +164,14 @@ export default function WholesalerWeekDetailScreen({ route, navigation }) {
       title: `${weekLabel || 'Week'} (${dateRange || ''})`,
     });
   }, [weekLabel, dateRange, navigation]);
+
+  useEffect(() => {
+    if (route.params?.openAdjustEntry) {
+      const targetEntry = route.params.openAdjustEntry;
+      navigation.setParams({ openAdjustEntry: null });
+      openAdjustModal(targetEntry);
+    }
+  }, [route.params?.openAdjustEntry]);
 
   // Compute Weekly Totals
   // Is Hafte Ki Payment includes regular payments AND advance settlements
@@ -285,27 +294,40 @@ export default function WholesalerWeekDetailScreen({ route, navigation }) {
     return new Date(year, month, Math.max(1, startDay), 12, 0, 0);
   }, [monthKey, startDay, endDay]);
 
-  const openAdjustModal = async () => {
+  const openAdjustModal = async (entryToEdit = null) => {
     setAdjustError('');
     setShowDatePicker(false);
     setShowTimePicker(false);
-    setAdjustDate(getDefaultDateForWeek());
-    setAdjustTimeString(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    setEditingEntry(entryToEdit);
+
+    if (entryToEdit) {
+      setAdjustAmount(String(entryToEdit.amount || ''));
+      setAdjustDate(new Date(entryToEdit.entryDate));
+      setAdjustTimeString(
+        entryToEdit.entryTime ||
+        new Date(entryToEdit.entryDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      );
+      setAdjustNote(entryToEdit.note || '');
+    } else {
+      setAdjustDate(getDefaultDateForWeek());
+      setAdjustTimeString(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      // Pre-fill with outstanding net amount if positive, or 0
+      const defaultAmt = weeklyTotals.net > 0 ? Math.min(weeklyTotals.net, advanceBaqi > 0 ? advanceBaqi : weeklyTotals.net) : 0;
+      setAdjustAmount(defaultAmt > 0 ? String(defaultAmt) : '');
+      setAdjustNote('');
+    }
 
     // Fetch fresh advance balance
     try {
       const wholesalerData = await getWholesalerById(wholesalerId);
       const pool = wholesalerData?.advanceBaqi !== undefined ? wholesalerData.advanceBaqi : advanceBaqi;
       setAdvanceBaqi(pool);
-      // Pre-fill with outstanding net amount if positive, or 0
-      const defaultAmt = weeklyTotals.net > 0 ? Math.min(weeklyTotals.net, pool > 0 ? pool : weeklyTotals.net) : 0;
-      setAdjustAmount(defaultAmt > 0 ? String(defaultAmt) : '');
-      setAdjustNote('');
+      if (!entryToEdit) {
+        const defaultAmt = weeklyTotals.net > 0 ? Math.min(weeklyTotals.net, pool > 0 ? pool : weeklyTotals.net) : 0;
+        setAdjustAmount(defaultAmt > 0 ? String(defaultAmt) : '');
+      }
       setIsAdjustModalVisible(true);
     } catch (err) {
-      const defaultAmt = weeklyTotals.net > 0 ? weeklyTotals.net : 0;
-      setAdjustAmount(defaultAmt > 0 ? String(defaultAmt) : '');
-      setAdjustNote('');
       setIsAdjustModalVisible(true);
     }
   };
@@ -356,8 +378,14 @@ export default function WholesalerWeekDetailScreen({ route, navigation }) {
       return;
     }
 
-    if (parsedAmount > advanceBaqi) {
-      setAdjustError(`Amount available advance (Rs. ${advanceBaqi.toLocaleString()}) se ziyada nahi ho sakti`);
+    // When editing an existing settlement, exclude its existing amount from the pool check
+    const existingEntryAmount = editingEntry ? (Number(editingEntry.amount) || 0) : 0;
+    const availableForThisAction = advanceBaqi + existingEntryAmount;
+
+    if (parsedAmount > availableForThisAction) {
+      setAdjustError(
+        `Amount available advance (Rs. ${availableForThisAction.toLocaleString()}) se ziyada nahi ho sakti`
+      );
       return;
     }
 
@@ -373,28 +401,39 @@ export default function WholesalerWeekDetailScreen({ route, navigation }) {
       setIsSubmittingAdjust(true);
       setAdjustError('');
 
+      const delta = parsedAmount - existingEntryAmount;
       const weekNetBefore = Math.max(0, weeklyTotals.net);
-      const weekNetAfter = Math.max(0, weeklyTotals.net - parsedAmount);
+      const weekNetAfter = Math.max(0, weeklyTotals.net - delta);
       const advBefore = advanceBaqi;
-      const advAfter = Math.max(0, advanceBaqi - parsedAmount);
+      const advAfter = Math.max(0, advanceBaqi - delta);
 
-      await createWholesalerEntry({
-        wholesalerId,
-        type: 'advanceSettlement',
-        amount: parsedAmount,
-        note: adjustNote ? adjustNote.trim() : `Advance se Rs. ${parsedAmount.toLocaleString()} kaata gaya`,
-        entryDate: adjustDate.toISOString(),
-        entryTime: adjustTimeString || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      });
+      if (editingEntry) {
+        await updateWholesalerEntry(editingEntry._id, {
+          amount: parsedAmount,
+          note: adjustNote ? adjustNote.trim() : `Advance se Rs. ${parsedAmount.toLocaleString()} kaata gaya`,
+          entryDate: adjustDate.toISOString(),
+          entryTime: adjustTimeString || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        });
+      } else {
+        await createWholesalerEntry({
+          wholesalerId,
+          type: 'advanceSettlement',
+          amount: parsedAmount,
+          note: adjustNote ? adjustNote.trim() : `Advance se Rs. ${parsedAmount.toLocaleString()} kaata gaya`,
+          entryDate: adjustDate.toISOString(),
+          entryTime: adjustTimeString || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        });
+      }
 
       setIsAdjustModalVisible(false);
       Alert.alert(
         'Kamyabi',
-        `Advance se Rs. ${parsedAmount.toLocaleString()} kaate gaye.\n\n` +
+        `Advance se Rs. ${parsedAmount.toLocaleString()} ${editingEntry ? 'update' : 'kaate'} gaye.\n\n` +
         `• Tarikh: ${adjustDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (${adjustTimeString})\n` +
         `• Is hafte ka baqaya: Rs. ${weekNetBefore.toLocaleString()} se Rs. ${weekNetAfter.toLocaleString()} reh gaya.\n` +
         `• Advance baqi: Rs. ${advBefore.toLocaleString()} se Rs. ${advAfter.toLocaleString()} reh gaya.`
       );
+      setEditingEntry(null);
       await loadWeekData(true);
     } catch (err) {
       setAdjustError(err.message || 'Advance se katoti karne me masla pesh aaya');
@@ -412,45 +451,42 @@ export default function WholesalerWeekDetailScreen({ route, navigation }) {
           : entry.type === 'advanceSettlement'
             ? 'Advance Se Kata'
             : 'Payment Entry',
-      `${
-        entry.type === 'purchase'
-          ? `${entry.quantity} ${entry.itemName} @ Rs.${entry.rate} = Rs.${entry.amount}`
-          : entry.type === 'advance'
-            ? `Advance: Rs. ${entry.amount}`
-            : entry.type === 'advanceSettlement'
-              ? `Advance se Rs. ${entry.amount.toLocaleString()} kaata gaya`
-              : `Payment: Rs. ${entry.amount}`
+      `${entry.type === 'purchase'
+        ? `${entry.quantity} ${entry.itemName} @ Rs.${entry.rate} = Rs.${entry.amount}`
+        : entry.type === 'advance'
+          ? `Advance: Rs. ${entry.amount}`
+          : entry.type === 'advanceSettlement'
+            ? `Advance se Rs. ${entry.amount.toLocaleString()} kaata gaya`
+            : `Payment: Rs. ${entry.amount}`
       }`,
       [
         { text: 'Cancel', style: 'cancel' },
-        ...(entry.type !== 'advanceSettlement'
-          ? [
-              {
-                text: 'Edit',
-                onPress: () => {
-                  if (entry.type === 'purchase') {
-                    navigation.navigate('AddPurchaseEntry', {
-                      wholesalerId,
-                      wholesalerName,
-                      entry,
-                    });
-                  } else if (entry.type === 'advance') {
-                    navigation.navigate('AddWholesalerAdvance', {
-                      wholesalerId,
-                      wholesalerName,
-                      entry,
-                    });
-                  } else {
-                    navigation.navigate('AddWholesalerPayment', {
-                      wholesalerId,
-                      wholesalerName,
-                      entry,
-                    });
-                  }
-                },
-              },
-            ]
-          : []),
+        {
+          text: 'Edit',
+          onPress: () => {
+            if (entry.type === 'purchase') {
+              navigation.navigate('AddPurchaseEntry', {
+                wholesalerId,
+                wholesalerName,
+                entry,
+              });
+            } else if (entry.type === 'advance') {
+              navigation.navigate('AddWholesalerAdvance', {
+                wholesalerId,
+                wholesalerName,
+                entry,
+              });
+            } else if (entry.type === 'advanceSettlement') {
+              openAdjustModal(entry);
+            } else {
+              navigation.navigate('AddWholesalerPayment', {
+                wholesalerId,
+                wholesalerName,
+                entry,
+              });
+            }
+          },
+        },
         {
           text: 'Delete',
           style: 'destructive',
@@ -582,7 +618,7 @@ export default function WholesalerWeekDetailScreen({ route, navigation }) {
 
           {/* Baqi Baqaya (Remaining unpaid for this week) */}
           <View style={styles.balanceHighlightBar}>
-            <Text style={styles.balanceHighlightLabel}>Baqi Baqaya (Is Hafte Ka):</Text>
+            <Text style={styles.balanceHighlightLabel}>Total Baqaya (Is Hafte Ka):</Text>
             <Text
               style={[
                 styles.balanceHighlightValue,
@@ -594,7 +630,7 @@ export default function WholesalerWeekDetailScreen({ route, navigation }) {
               ]}
             >
               Rs. {Math.abs(weeklyTotals.net).toLocaleString()}
-              {weeklyTotals.net > 0 ? ' (Baqi Dena Hai)' : weeklyTotals.net < 0 ? ' (Ziyada Adaigi)' : ' (Mukammal Ada)'}
+              {weeklyTotals.net > 0 ? ' ' : weeklyTotals.net < 0 ? ' (Ziyada Adaigi)' : ' (Mukammal Ada)'}
             </Text>
           </View>
         </View>
@@ -831,7 +867,9 @@ export default function WholesalerWeekDetailScreen({ route, navigation }) {
               <View style={styles.modalHeader}>
                 <View style={styles.modalHeaderLeft}>
                   <Text style={styles.modalIcon}>🪙</Text>
-                  <Text style={styles.modalTitle}>Advance Se Katein</Text>
+                  <Text style={styles.modalTitle}>
+                    {editingEntry ? 'Advance Deduction Edit Karein' : 'Advance Se Katein'}
+                  </Text>
                 </View>
                 <TouchableOpacity
                   onPress={() => !isSubmittingAdjust && setIsAdjustModalVisible(false)}
@@ -844,8 +882,12 @@ export default function WholesalerWeekDetailScreen({ route, navigation }) {
 
               {/* Advance Pool Info Box */}
               <View style={styles.modalAdvancePoolBox}>
-                <Text style={styles.modalAdvancePoolLabel}>Moujooda Available Advance Pool:</Text>
-                <Text style={styles.modalAdvancePoolValue}>Rs. {advanceBaqi.toLocaleString()}</Text>
+                <Text style={styles.modalAdvancePoolLabel}>
+                  {editingEntry ? 'Available Advance Pool (Is Katoti Samet):' : 'Moujooda Available Advance Pool:'}
+                </Text>
+                <Text style={styles.modalAdvancePoolValue}>
+                  Rs. {(advanceBaqi + (editingEntry ? (Number(editingEntry.amount) || 0) : 0)).toLocaleString()}
+                </Text>
                 <Text style={styles.modalAdvancePoolHint}>
                   Is hafte ka baqi bill: Rs. {Math.max(0, weeklyTotals.net).toLocaleString()}
                 </Text>
@@ -984,7 +1026,9 @@ export default function WholesalerWeekDetailScreen({ route, navigation }) {
                   {isSubmittingAdjust ? (
                     <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
-                    <Text style={styles.modalConfirmBtnText}>Advance Se Katein</Text>
+                    <Text style={styles.modalConfirmBtnText}>
+                      {editingEntry ? 'Update Katoti' : 'Advance Se Katein'}
+                    </Text>
                   )}
                 </TouchableOpacity>
               </View>

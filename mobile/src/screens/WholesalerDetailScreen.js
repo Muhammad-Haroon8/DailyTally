@@ -254,7 +254,7 @@ export default function WholesalerDetailScreen({ route, navigation }) {
           {/* Baqi Baqaya Highlight Bar (strictly Kharedari - Payment) */}
           <View style={styles.balanceHighlightBar}>
             <Text style={styles.balanceHighlightLabel}>
-              Baqi Baqaya (Total Dena Hai):
+              TOTAL Baqaya:
             </Text>
             <Text
               style={[
