@@ -17,6 +17,15 @@ import ManageItemsScreen from '../screens/ManageItemsScreen';
 import AddEditItemScreen from '../screens/AddEditItemScreen';
 import AddItemEntryScreen from '../screens/AddItemEntryScreen';
 import AddPaymentEntryScreen from '../screens/AddPaymentEntryScreen';
+import WholesalerListScreen from '../screens/WholesalerListScreen';
+import AddEditWholesalerScreen from '../screens/AddEditWholesalerScreen';
+import WholesalerDetailScreen from '../screens/WholesalerDetailScreen';
+import WholesalerMonthDetailScreen from '../screens/WholesalerMonthDetailScreen';
+import WholesalerWeekDetailScreen from '../screens/WholesalerWeekDetailScreen';
+import AddPurchaseEntryScreen from '../screens/AddPurchaseEntryScreen';
+import AddWholesalerPaymentScreen from '../screens/AddWholesalerPaymentScreen';
+import AddWholesalerAdvanceScreen from '../screens/AddWholesalerAdvanceScreen';
+import ManageWholesalerItemsScreen from '../screens/ManageWholesalerItemsScreen';
 import ProfileDropdownMenu from '../components/ProfileDropdownMenu';
 import { colors } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
@@ -133,6 +142,70 @@ export default function AppNavigator() {
             options={({ route }) => ({
               title: route.params?.entry ? 'Edit Payment' : 'Wasool Raqam',
             })}
+          />
+          {/* Wholesaler Module Screens */}
+          <Stack.Screen
+            name="WholesalerList"
+            component={WholesalerListScreen}
+            options={{
+              title: 'Wholesalers (Saudagar)',
+            }}
+          />
+          <Stack.Screen
+            name="AddEditWholesaler"
+            component={AddEditWholesalerScreen}
+            options={({ route }) => ({
+              title: route.params?.wholesalerId ? 'Edit Wholesaler' : 'Add Naya Wholesaler',
+            })}
+          />
+          <Stack.Screen
+            name="WholesalerDetail"
+            component={WholesalerDetailScreen}
+            options={({ route }) => ({
+              title: route.params?.wholesalerName || 'Wholesaler Hisab',
+            })}
+          />
+          <Stack.Screen
+            name="WholesalerMonthDetail"
+            component={WholesalerMonthDetailScreen}
+            options={({ route }) => ({
+              title: route.params?.initialMonthData?.monthLabel || 'Mahine Ka Hisab',
+            })}
+          />
+          <Stack.Screen
+            name="WholesalerWeekDetail"
+            component={WholesalerWeekDetailScreen}
+            options={({ route }) => ({
+              title: route.params?.weekLabel || 'Hafte Ka Hisab',
+            })}
+          />
+          <Stack.Screen
+            name="AddPurchaseEntry"
+            component={AddPurchaseEntryScreen}
+            options={({ route }) => ({
+              title: route.params?.entry ? 'Edit Purchase' : 'Purchase Add Karein',
+            })}
+          />
+          <Stack.Screen
+            name="AddWholesalerPayment"
+            component={AddWholesalerPaymentScreen}
+            options={({ route }) => ({
+              title: route.params?.entry ? 'Edit Payment' : 'Wholesaler Payment',
+            })}
+          />
+          <Stack.Screen
+            name="AddWholesalerAdvance"
+            component={AddWholesalerAdvanceScreen}
+            options={({ route }) => ({
+              title: route.params?.entry ? 'Edit Advance' : 'Advance Dein',
+            })}
+          />
+          <Stack.Screen
+            name="ManageWholesalerItems"
+            component={ManageWholesalerItemsScreen}
+            options={{
+              title: 'Wholesaler Purchase Items',
+            }}
           />
         </>
       ) : (

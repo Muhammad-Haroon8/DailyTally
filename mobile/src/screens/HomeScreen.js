@@ -41,7 +41,7 @@ export default function HomeScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Main Hero Section: Big Center-Aligned "Customer Udhaar" Card */}
+        {/* Main Modules Section: Customer Udhaar & Wholesaler Cards */}
         <View style={styles.heroCardContainer}>
           <TouchableOpacity
             activeOpacity={0.85}
@@ -60,6 +60,30 @@ export default function HomeScreen({ navigation }) {
 
               <View style={styles.heroActionBadge}>
                 <Text style={styles.heroActionText}>Khata Kholein →</Text>
+              </View>
+            </Card>
+          </TouchableOpacity>
+        </View>
+
+        {/* Wholesaler (Supplier) Module Card */}
+        <View style={styles.heroCardContainer}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('WholesalerList')}
+            style={[styles.heroTouchable, styles.wholesalerTouchable]}
+          >
+            <Card style={[styles.heroCard, styles.wholesalerCard]}>
+              <View style={[styles.heroIconBadge, styles.wholesalerIconBadge]}>
+                <Text style={styles.heroIconText}>🚛</Text>
+              </View>
+
+              <Text style={[styles.heroTitle, styles.wholesalerTitle]}>Wholesaler (Saudagar)</Text>
+              <Text style={styles.heroSubtitle}>
+                Tamam wholesalers se kharedari, payment aur baqaya ka hisab
+              </Text>
+
+              <View style={[styles.heroActionBadge, styles.wholesalerActionBadge]}>
+                <Text style={styles.heroActionText}>Saudagar Khata Kholein →</Text>
               </View>
             </Card>
           </TouchableOpacity>
@@ -184,6 +208,21 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
+  },
+  wholesalerTouchable: {
+    shadowColor: colors.accent,
+  },
+  wholesalerCard: {
+    borderColor: colors.accentLight,
+  },
+  wholesalerIconBadge: {
+    backgroundColor: colors.accentLight,
+  },
+  wholesalerTitle: {
+    color: colors.accent,
+  },
+  wholesalerActionBadge: {
+    backgroundColor: colors.accent,
   },
   footerNoteContainer: {
     marginTop: spacing.sm,

@@ -10,6 +10,7 @@ export const colors = {
   successLight: "#EAF5DE",  // Success badge background
   danger: "#A32D2D",        // Outstanding balance, delete actions, warnings
   dangerLight: "#FDE8E8",   // Danger badge background
+  error: "#A32D2D",         // Alias for danger/error
   background: "#F8F7F4",    // App background (soft warm gray)
   cardBackground: "#FFFFFF",// Cards, modals, containers
   textPrimary: "#2C2C2A",   // Main text
@@ -50,6 +51,20 @@ export const typography = {
   amountMedium: {
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  fontSize: {
+    xs: 11,
+    sm: 13,
+    md: 15,
+    lg: 18,
+    xl: 22,
+    xxl: 26,
+  },
+  fontWeight: {
+    normal: '400',
+    medium: '500',
+    semibold: '600',
+    bold: '700',
   },
 };
 

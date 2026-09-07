@@ -1,9 +1,7 @@
-const path = require('path');
-const fs = require('fs');
-const mongoose = require('mongoose');
-const PDFDocument = require('pdfkit');
 const Customer = require('../models/Customer');
 const Entry = require('../models/Entry');
+const User = require('../models/User');
+const { generateReportPdf } = require('../services/pdfReportService');
 
 /**
  * Generates and streams PDF report for customer
@@ -23,6 +21,10 @@ const generateCustomerReportPdf = async (req, res) => {
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found or unauthorized' });
     }
+
+    // Optional user/shop profile for header
+    const user = await User.findById(req.userId).select('name phone').lean();
+    const shopName = user?.name || 'DAILY TALLY / KAROBAR HISAB';
 
     // 2. Validate dates
     if (!rawStartDate || !rawEndDate) {
@@ -82,11 +84,36 @@ const generateCustomerReportPdf = async (req, res) => {
     let totalItems = 0;
     let totalPayments = 0;
 
-    rangeEntries.forEach((e) => {
-      if (e.type === 'item') {
-        totalItems += e.amount;
+    // Assemble structured lines according to generic report data shape
+    const lines = rangeEntries.map((entry) => {
+      const isItem = entry.type === 'item';
+
+      if (isItem) {
+        totalItems += entry.amount;
+        return {
+          date: entry.entryDate,
+          type: 'debit',
+          typeBadgeText: 'UDHAAR',
+          mainLabel: `${entry.itemName || 'Item'} (${entry.quantity} x Rs.${entry.rate})`,
+          mainAmount: entry.amount,
+          subLines: [],
+          lineTotal: entry.amount,
+          note: entry.note,
+          entryTime: entry.entryTime,
+        };
       } else {
-        totalPayments += e.amount;
+        totalPayments += entry.amount;
+        return {
+          date: entry.entryDate,
+          type: 'credit',
+          typeBadgeText: 'WASOOL',
+          mainLabel: `Wasool Raqam${entry.note ? ` (${entry.note})` : ''}`,
+          mainAmount: entry.amount,
+          subLines: [],
+          lineTotal: entry.amount,
+          note: entry.note,
+          entryTime: entry.entryTime,
+        };
       }
     });
 
@@ -94,179 +121,29 @@ const generateCustomerReportPdf = async (req, res) => {
     totalPayments = Math.round(totalPayments * 100) / 100;
     const closingBalance = Math.round((openingBalance + totalItems - totalPayments) * 100) / 100;
 
-    // Check for Arial unicode font to correctly render Urdu / Arabic script
-    const regularFontPath = path.resolve(__dirname, '..', 'fonts', 'arial.ttf');
-    const boldFontPath = path.resolve(__dirname, '..', 'fonts', 'arialbd.ttf');
-    const hasUnicodeFont = fs.existsSync(regularFontPath);
-
-    // 5. Initialize PDFDocument (buffered in-memory for serverless stream safety)
-    const doc = new PDFDocument({
-      size: 'A4',
-      margin: 40,
-      font: hasUnicodeFont ? regularFontPath : undefined,
-    });
-
-    if (hasUnicodeFont) {
-      doc.registerFont('AppFont', regularFontPath);
-      if (fs.existsSync(boldFontPath)) {
-        doc.registerFont('AppFont-Bold', boldFontPath);
-      } else {
-        doc.registerFont('AppFont-Bold', regularFontPath);
-      }
-    }
-
-    const fontRegular = hasUnicodeFont ? 'AppFont' : 'Helvetica';
-    const fontBold = hasUnicodeFont ? 'AppFont-Bold' : 'Helvetica-Bold';
-
-    // Buffer PDF chunks in memory to guarantee the response completes reliably in serverless
-    const chunks = [];
-    const pdfPromise = new Promise((resolve, reject) => {
-      doc.on('data', (chunk) => chunks.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', (err) => reject(err));
-    });
-
-    // Clean filename
-    const safeCustomerName = customer.name.replace(/[^a-zA-Z0-9]/g, '_');
     const startStr = startDate.toISOString().split('T')[0];
     const endStr = endDate.toISOString().split('T')[0];
+    const safeCustomerName = customer.name.replace(/[^a-zA-Z0-9]/g, '_');
     const filename = `Hisab_${safeCustomerName}_${startStr}_to_${endStr}.pdf`;
 
-    // ================= HEADER =================
-    doc.fillColor('#0F6E56').fontSize(22).font(fontBold).text('DAILY TALLY / KAROBAR HISAB', { align: 'center' });
-    doc.fillColor('#5F5E5A').fontSize(11).font(fontRegular).text('Gahak Hisab Statement', { align: 'center' });
-    doc.moveDown(0.8);
+    // 5. Build structured reportData for the shared renderer
+    const reportData = {
+      shopName,
+      entityLabel: 'Customer',
+      entityName: customer.name,
+      entityPhone: customer.phone || '',
+      dateRangeLabel: `${startStr}  to  ${endStr}`,
+      openingBalance,
+      lines,
+      totals: {
+        totalDebit: totalItems,
+        totalCredit: totalPayments,
+        closingBalance,
+      },
+    };
 
-    // Customer Info & Date Box
-    const boxTop = doc.y;
-    doc.rect(40, boxTop, 515, 60).fillAndStroke('#F8F7F4', '#E5E3DC');
-
-    doc.fillColor('#2C2C2A').fontSize(13).font(fontBold)
-      .text(`Gahak Name: ${customer.name}`, 55, boxTop + 12);
-
-    if (customer.phone) {
-      doc.fillColor('#5F5E5A').fontSize(10).font(fontRegular)
-        .text(`Phone: ${customer.phone}`, 55, boxTop + 34);
-    }
-
-    doc.fillColor('#0F6E56').fontSize(11).font(fontBold)
-      .text(`Date Range: ${startStr}  to  ${endStr}`, 300, boxTop + 14, { align: 'right', width: 240 });
-
-    doc.fillColor('#5F5E5A').fontSize(9).font(fontRegular)
-      .text(`Generated: ${new Date().toLocaleString()}`, 300, boxTop + 34, { align: 'right', width: 240 });
-
-    doc.y = boxTop + 75;
-
-    // ================= OPENING BALANCE BANNER =================
-    const bannerY = doc.y;
-    doc.rect(40, bannerY, 515, 28).fillAndStroke('#FAF5EE', '#EBDCC8');
-    doc.fillColor('#BA7517').fontSize(11).font(fontBold)
-      .text('Pichla Baqaya (Opening Balance Carried Forward):', 52, bannerY + 8);
-    doc.text(`Rs. ${openingBalance.toLocaleString()}`, 380, bannerY + 8, { align: 'right', width: 160 });
-
-    doc.y = bannerY + 38;
-
-    // ================= TABLE HEADER =================
-    const tableTop = doc.y;
-    doc.rect(40, tableTop, 515, 22).fillAndStroke('#0F6E56', '#0F6E56');
-
-    doc.fillColor('#FFFFFF').fontSize(10).font(fontBold);
-    doc.text('Date', 48, tableTop + 6, { width: 75 });
-    doc.text('Type', 125, tableTop + 6, { width: 65 });
-    doc.text('Details / Note', 195, tableTop + 6, { width: 215 });
-    doc.text('Amount (Rs.)', 415, tableTop + 6, { width: 130, align: 'right' });
-
-    doc.y = tableTop + 24;
-
-    // ================= TABLE ROWS =================
-    let currentY = doc.y;
-    doc.font(fontRegular).fontSize(9);
-
-    if (rangeEntries.length === 0) {
-      doc.rect(40, currentY, 515, 30).fillAndStroke('#FFFFFF', '#E5E3DC');
-      doc.fillColor('#5F5E5A').text('Is arsay me koi transaction nahi hui.', 50, currentY + 10, { align: 'center', width: 495 });
-      currentY += 30;
-    } else {
-      rangeEntries.forEach((entry, index) => {
-        // Page break if near bottom
-        if (currentY > 720) {
-          doc.addPage();
-          currentY = 40;
-        }
-
-        const isItem = entry.type === 'item';
-        const rowBg = index % 2 === 0 ? '#FFFFFF' : '#FBFBFA';
-        doc.rect(40, currentY, 515, 24).fillAndStroke(rowBg, '#E5E3DC');
-
-        // Date
-        const dateStr = new Date(entry.entryDate).toLocaleDateString('en-GB', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-        });
-        doc.fillColor('#2C2C2A').font(fontRegular).text(dateStr, 48, currentY + 7, { width: 75 });
-
-        // Type Pill Text
-        doc.fillColor(isItem ? '#A32D2D' : '#3B6D11').font(fontBold)
-          .text(isItem ? 'UDHAAR' : 'WASOOL', 125, currentY + 7, { width: 65 });
-
-        // Description
-        doc.font(fontRegular).fillColor('#2C2C2A');
-        let desc = isItem
-          ? `${entry.itemName || 'Item'} (${entry.quantity} x Rs.${entry.rate})`
-          : `Wasool Raqam ${entry.note ? `[${entry.note}]` : ''}`;
-        if (entry.entryTime) desc += ` - ${entry.entryTime}`;
-
-        doc.text(desc, 195, currentY + 7, { width: 215, ellipsis: true });
-
-        // Amount
-        const amtText = isItem ? `Rs. ${entry.amount.toLocaleString()}` : `+ Rs. ${entry.amount.toLocaleString()}`;
-        doc.fillColor(isItem ? '#A32D2D' : '#3B6D11').font(fontBold)
-          .text(amtText, 415, currentY + 7, { width: 130, align: 'right' });
-
-        currentY += 24;
-      });
-    }
-
-    // ================= TOTALS SUMMARY BOX =================
-    if (currentY > 660) {
-      doc.addPage();
-      currentY = 40;
-    }
-
-    currentY += 15;
-    doc.rect(40, currentY, 515, 80).fillAndStroke('#F8F7F4', '#0F6E56');
-
-    doc.fillColor('#2C2C2A').fontSize(10).font(fontRegular)
-      .text('Total Udhaar (Items):', 60, currentY + 12);
-    doc.fillColor('#A32D2D').font(fontBold)
-      .text(`Rs. ${totalItems.toLocaleString()}`, 200, currentY + 12, { align: 'right', width: 120 });
-
-    doc.fillColor('#2C2C2A').font(fontRegular)
-      .text('Total Wasool (Payments):', 60, currentY + 32);
-    doc.fillColor('#3B6D11').font(fontBold)
-      .text(`Rs. ${totalPayments.toLocaleString()}`, 200, currentY + 32, { align: 'right', width: 120 });
-
-    doc.fillColor('#2C2C2A').font(fontRegular)
-      .text('Arsay Ka Net Hisab:', 60, currentY + 52);
-    const periodNet = totalItems - totalPayments;
-    doc.fillColor(periodNet >= 0 ? '#A32D2D' : '#3B6D11').font(fontBold)
-      .text(`${periodNet >= 0 ? '+' : '-'} Rs. ${Math.abs(periodNet).toLocaleString()}`, 200, currentY + 52, { align: 'right', width: 120 });
-
-    // Big Closing Balance on Right side of totals box
-    doc.rect(340, currentY + 8, 200, 64).fillAndStroke('#0F6E56', '#0F6E56');
-    doc.fillColor('#FFFFFF').fontSize(11).font(fontBold)
-      .text('CLOSING BALANCE', 345, currentY + 18, { align: 'center', width: 190 });
-    doc.fontSize(16).text(`Rs. ${closingBalance.toLocaleString()}`, 345, currentY + 38, { align: 'center', width: 190 });
-
-    // ================= FOOTER =================
-    doc.fontSize(8).fillColor('#7A7975').font(fontRegular)
-      .text('Daily Tally - Software Hisab & Ledger. Generated securely for customer record.', 40, 780, { align: 'center', width: 515 });
-
-    // Finalize PDF generation
-    doc.end();
-
-    const pdfBuffer = await pdfPromise;
+    // 6. Generate PDF via shared service
+    const pdfBuffer = await generateReportPdf(reportData);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

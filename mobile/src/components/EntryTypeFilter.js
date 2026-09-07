@@ -12,13 +12,36 @@ export default function EntryTypeFilter({
   onToggleOpen,
   counts = {},
   title = 'Entries',
+  itemLabel = 'Udhaar',
+  paymentLabel = 'Wasool',
+  advanceLabel = 'Advance',
+  settlementLabel = 'Advance Se Kata',
+  showAdvance = false,
+  showSettlement = false,
   style,
 }) {
   const options = [
     { key: 'all', label: 'Sab', count: counts.all },
-    { key: 'item', label: 'Udhaar', count: counts.item },
-    { key: 'payment', label: 'Wasool', count: counts.payment },
+    { key: 'item', label: itemLabel, count: counts.item },
+    { key: 'payment', label: paymentLabel, count: counts.payment },
   ];
+
+  if (showAdvance || counts.advance !== undefined) {
+    options.push({ key: 'advance', label: advanceLabel, count: counts.advance });
+  }
+
+  if (showSettlement || counts.settlement !== undefined) {
+    options.push({ key: 'advanceSettlement', label: settlementLabel, count: counts.settlement });
+  }
+
+  const getActiveFilterLabel = () => {
+    if (filter === 'all') return 'Filter';
+    if (filter === 'item') return itemLabel;
+    if (filter === 'payment') return paymentLabel;
+    if (filter === 'advance') return advanceLabel;
+    if (filter === 'advanceSettlement') return settlementLabel;
+    return 'Filter';
+  };
 
   return (
     <View style={[styles.container, style]}>
@@ -37,11 +60,7 @@ export default function EntryTypeFilter({
               (isOpen || filter !== 'all') && styles.toggleTextActive,
             ]}
           >
-            {filter === 'all'
-              ? 'Filter'
-              : filter === 'item'
-                ? 'Udhaar'
-                : 'Wasool'}
+            {getActiveFilterLabel()}
           </Text>
         </TouchableOpacity>
       </View>
@@ -60,6 +79,12 @@ export default function EntryTypeFilter({
               } else if (opt.key === 'payment') {
                 activeChipStyle = styles.chipActiveWasool;
                 activeTextStyle = styles.chipTextActiveWasool;
+              } else if (opt.key === 'advance') {
+                activeChipStyle = styles.chipActiveAdvance;
+                activeTextStyle = styles.chipTextActiveAdvance;
+              } else if (opt.key === 'advanceSettlement') {
+                activeChipStyle = styles.chipActiveSettlement;
+                activeTextStyle = styles.chipTextActiveSettlement;
               }
             }
 
@@ -153,6 +178,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.success,
     borderColor: colors.success,
   },
+  chipActiveAdvance: {
+    backgroundColor: '#E65100', // Distinct warm deep amber
+    borderColor: '#E65100',
+  },
+  chipActiveSettlement: {
+    backgroundColor: '#0F6E56', // Brand emerald teal
+    borderColor: '#0F6E56',
+  },
   chipText: {
     fontSize: 12,
     fontWeight: '600',
@@ -167,6 +200,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   chipTextActiveWasool: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  chipTextActiveAdvance: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  chipTextActiveSettlement: {
     color: '#FFFFFF',
     fontWeight: '700',
   },

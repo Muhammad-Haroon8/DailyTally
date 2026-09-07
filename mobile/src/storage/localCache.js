@@ -5,9 +5,13 @@
 import storage from './storageAdapter';
 
 export const CACHE_KEY_CUSTOMERS = 'cache:customers';
+export const CACHE_KEY_WHOLESALERS = 'cache:wholesalers';
 export const CACHE_KEY_ITEMS = 'cache:items';
+export const CACHE_KEY_WHOLESALER_ITEMS = 'cache:wholesaler_items';
 export const CACHE_KEY_ANALYTICS_SUMMARY = 'cache:analyticsSummary';
+export const CACHE_KEY_WHOLESALER_ANALYTICS_SUMMARY = 'cache:wholesalerAnalyticsSummary';
 export const getCustomerDetailKey = (customerId) => `cache:customer:${customerId}:entries`;
+export const getWholesalerDetailKey = (wholesalerId) => `cache:wholesaler:${wholesalerId}:entries`;
 
 export const getCachedAnalyticsSummary = async () => {
   return await getCached(CACHE_KEY_ANALYTICS_SUMMARY);
@@ -15,6 +19,60 @@ export const getCachedAnalyticsSummary = async () => {
 
 export const saveCachedAnalyticsSummary = async (data) => {
   await setCached(CACHE_KEY_ANALYTICS_SUMMARY, data);
+};
+
+export const getCachedWholesalerAnalyticsSummary = async () => {
+  return await getCached(CACHE_KEY_WHOLESALER_ANALYTICS_SUMMARY);
+};
+
+export const saveCachedWholesalerAnalyticsSummary = async (data) => {
+  await setCached(CACHE_KEY_WHOLESALER_ANALYTICS_SUMMARY, data);
+};
+
+export const getCachedWholesalers = async () => {
+  return await getCached(CACHE_KEY_WHOLESALERS);
+};
+
+export const saveCachedWholesalers = async (wholesalers) => {
+  await setCached(CACHE_KEY_WHOLESALERS, wholesalers);
+};
+
+export const getCachedWholesalerDetail = async (wholesalerId) => {
+  return await getCached(getWholesalerDetailKey(wholesalerId));
+};
+
+export const saveCachedWholesalerDetail = async (wholesalerId, data) => {
+  await setCached(getWholesalerDetailKey(wholesalerId), data);
+};
+
+export const upsertCachedWholesaler = async (wholesaler) => {
+  try {
+    const current = (await getCachedWholesalers()) || [];
+    const idx = current.findIndex((w) => w._id === wholesaler._id);
+    let updated;
+    if (idx >= 0) {
+      updated = [...current];
+      updated[idx] = { ...updated[idx], ...wholesaler };
+    } else {
+      updated = [wholesaler, ...current];
+    }
+    await saveCachedWholesalers(updated);
+    return updated;
+  } catch (err) {
+    console.error('Error upserting cached wholesaler:', err);
+  }
+};
+
+export const removeCachedWholesaler = async (wholesalerId) => {
+  try {
+    const current = (await getCachedWholesalers()) || [];
+    const updated = current.filter((w) => w._id !== wholesalerId);
+    await saveCachedWholesalers(updated);
+    await storage.removeItem(getWholesalerDetailKey(wholesalerId));
+    return updated;
+  } catch (err) {
+    console.error('Error removing cached wholesaler:', err);
+  }
 };
 
 /**
@@ -353,6 +411,47 @@ export const removeCachedItem = async (itemId) => {
 };
 
 /* ==========================================================================
+   WHOLESALER ITEMS MASTER CACHE (SEPARATE FROM CUSTOMER ITEMS)
+   ========================================================================== */
+
+export const getCachedWholesalerItems = async () => {
+  return await getCached(CACHE_KEY_WHOLESALER_ITEMS);
+};
+
+export const saveCachedWholesalerItems = async (items) => {
+  await setCached(CACHE_KEY_WHOLESALER_ITEMS, items);
+};
+
+export const upsertCachedWholesalerItem = async (item) => {
+  try {
+    const current = (await getCachedWholesalerItems()) || [];
+    const idx = current.findIndex((i) => i._id === item._id);
+    let updated;
+    if (idx >= 0) {
+      updated = [...current];
+      updated[idx] = { ...updated[idx], ...item };
+    } else {
+      updated = [item, ...current];
+    }
+    await saveCachedWholesalerItems(updated);
+    return updated;
+  } catch (err) {
+    console.error('Error upserting cached wholesaler item:', err);
+  }
+};
+
+export const removeCachedWholesalerItem = async (itemId) => {
+  try {
+    const current = (await getCachedWholesalerItems()) || [];
+    const updated = current.filter((i) => i._id !== itemId);
+    await saveCachedWholesalerItems(updated);
+    return updated;
+  } catch (err) {
+    console.error('Error removing cached wholesaler item:', err);
+  }
+};
+
+/* ==========================================================================
    ID REMAPPING ACROSS ALL LOCAL CACHES
    ========================================================================== */
 
@@ -411,6 +510,22 @@ export const replaceEntityIdInCache = async (tempId, realId) => {
       });
       if (updated) {
         await saveCachedItems(newItems);
+      }
+    }
+
+    // 4. Update Wholesaler items list if tempId belongs to a wholesaler item
+    const wholesalerItems = await getCachedWholesalerItems();
+    if (wholesalerItems && wholesalerItems.length > 0) {
+      let updated = false;
+      const newWholesalerItems = wholesalerItems.map((item) => {
+        if (item._id === tempId) {
+          updated = true;
+          return { ...item, _id: realId, isLocal: false };
+        }
+        return item;
+      });
+      if (updated) {
+        await saveCachedWholesalerItems(newWholesalerItems);
       }
     }
 
