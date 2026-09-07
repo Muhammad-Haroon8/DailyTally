@@ -264,10 +264,81 @@ const deleteCustomer = async (req, res) => {
   }
 };
 
+/**
+ * Returns aggregated shop-wide analytics: Kul Udhaar, Kul Wasool, and Kul Baqaya
+ * across all customers belonging to req.userId
+ * GET /api/customers/analytics/summary
+ */
+const getAnalyticsSummary = async (req, res) => {
+  try {
+    const userObjectId = new mongoose.Types.ObjectId(req.userId);
+
+    const result = await Customer.aggregate([
+      // 1. Match only customers belonging to this user / shop
+      { $match: { userId: userObjectId } },
+
+      // 2. Lookup all entries for each of these customers
+      {
+        $lookup: {
+          from: 'entries',
+          localField: '_id',
+          foreignField: 'customerId',
+          as: 'customerEntries',
+        },
+      },
+
+      // 3. Unwind entries to process them in aggregate
+      { $unwind: '$customerEntries' },
+
+      // 4. Group all entries across all customers for this user
+      {
+        $group: {
+          _id: null,
+          totalUdhaar: {
+            $sum: {
+              $cond: [{ $eq: ['$customerEntries.type', 'item'] }, '$customerEntries.amount', 0],
+            },
+          },
+          totalWasool: {
+            $sum: {
+              $cond: [{ $eq: ['$customerEntries.type', 'payment'] }, '$customerEntries.amount', 0],
+            },
+          },
+        },
+      },
+
+      // 5. Project totals and compute totalBaqaya
+      {
+        $project: {
+          _id: 0,
+          totalUdhaar: { $round: ['$totalUdhaar', 2] },
+          totalWasool: { $round: ['$totalWasool', 2] },
+          totalBaqaya: { $round: [{ $subtract: ['$totalUdhaar', '$totalWasool'] }, 2] },
+        },
+      },
+    ]);
+
+    if (result && result.length > 0) {
+      return res.status(200).json(result[0]);
+    }
+
+    return res.status(200).json({
+      totalUdhaar: 0,
+      totalWasool: 0,
+      totalBaqaya: 0,
+    });
+  } catch (error) {
+    console.error('Error fetching analytics summary:', error);
+    return res.status(500).json({ error: 'Server error while fetching analytics summary' });
+  }
+};
+
 module.exports = {
   createCustomer,
   getCustomers,
   getCustomerById,
   updateCustomer,
   deleteCustomer,
+  getAnalyticsSummary,
 };
+

@@ -4,9 +4,47 @@
 
 import storage from './storageAdapter';
 
-const CACHE_KEY_CUSTOMERS = '@cache_customers';
-const CACHE_KEY_ITEMS = '@cache_items';
-const getCustomerDetailKey = (customerId) => `@cache_customer_${customerId}`;
+export const CACHE_KEY_CUSTOMERS = 'cache:customers';
+export const CACHE_KEY_ITEMS = 'cache:items';
+export const CACHE_KEY_ANALYTICS_SUMMARY = 'cache:analyticsSummary';
+export const getCustomerDetailKey = (customerId) => `cache:customer:${customerId}:entries`;
+
+export const getCachedAnalyticsSummary = async () => {
+  return await getCached(CACHE_KEY_ANALYTICS_SUMMARY);
+};
+
+export const saveCachedAnalyticsSummary = async (data) => {
+  await setCached(CACHE_KEY_ANALYTICS_SUMMARY, data);
+};
+
+/**
+ * General purpose cache reader
+ * @param {string} key
+ * @returns {Promise<any|null>}
+ */
+export const getCached = async (key) => {
+  try {
+    const raw = await storage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    console.warn(`[LocalCache] Error reading key "${key}":`, err.message);
+    return null;
+  }
+};
+
+/**
+ * General purpose cache writer
+ * @param {string} key
+ * @param {any} data
+ * @returns {Promise<void>}
+ */
+export const setCached = async (key, data) => {
+  try {
+    await storage.setItem(key, JSON.stringify(data));
+  } catch (err) {
+    console.warn(`[LocalCache] Error setting key "${key}":`, err.message);
+  }
+};
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -46,6 +84,8 @@ export const computeCustomerHisabFromEntries = (customer, rawEntries = []) => {
         monthLabel: `${MONTH_NAMES[monthNum]} ${year}`,
         entries: [],
         monthNet: 0,
+        monthUdhaar: 0,
+        monthWasool: 0,
       });
     }
 
@@ -53,9 +93,13 @@ export const computeCustomerHisabFromEntries = (customer, rawEntries = []) => {
     monthGroup.entries.push(entry);
 
     if (entry.type === 'item') {
-      monthGroup.monthNet += Number(entry.amount || 0);
+      const amt = Number(entry.amount || 0);
+      monthGroup.monthNet += amt;
+      monthGroup.monthUdhaar += amt;
     } else {
-      monthGroup.monthNet -= Number(entry.amount || 0);
+      const amt = Number(entry.amount || 0);
+      monthGroup.monthNet -= amt;
+      monthGroup.monthWasool += amt;
     }
   });
 
@@ -80,6 +124,8 @@ export const computeCustomerHisabFromEntries = (customer, rawEntries = []) => {
       monthLabel: m.monthLabel,
       openingBalance,
       monthNet,
+      monthUdhaar: Math.round(m.monthUdhaar * 100) / 100,
+      monthWasool: Math.round(m.monthWasool * 100) / 100,
       closingBalance,
       entries: displayEntries,
     };
@@ -87,6 +133,17 @@ export const computeCustomerHisabFromEntries = (customer, rawEntries = []) => {
 
   // Overall customer net balance
   const finalBalance = Math.round(runningBalance * 100) / 100;
+
+  // Compute total lifetime Udhaar & Wasool
+  let totalUdhaar = 0;
+  let totalWasool = 0;
+  sortedChronological.forEach((e) => {
+    if (e.type === 'item') {
+      totalUdhaar += Number(e.amount || 0);
+    } else {
+      totalWasool += Number(e.amount || 0);
+    }
+  });
 
   // Months sorted newest month first for UI display
   const displayMonths = [...processedMonths].reverse();
@@ -98,6 +155,8 @@ export const computeCustomerHisabFromEntries = (customer, rawEntries = []) => {
     customer: {
       ...customer,
       balance: finalBalance,
+      totalUdhaar: Math.round(totalUdhaar * 100) / 100,
+      totalWasool: Math.round(totalWasool * 100) / 100,
     },
     months: displayMonths,
     entries: displayRawEntries,
@@ -109,21 +168,11 @@ export const computeCustomerHisabFromEntries = (customer, rawEntries = []) => {
    ========================================================================== */
 
 export const getCachedCustomers = async () => {
-  try {
-    const raw = await storage.getItem(CACHE_KEY_CUSTOMERS);
-    return raw ? JSON.parse(raw) : null;
-  } catch (err) {
-    console.error('Error reading cached customers:', err);
-    return null;
-  }
+  return await getCached(CACHE_KEY_CUSTOMERS);
 };
 
 export const saveCachedCustomers = async (customers) => {
-  try {
-    await storage.setItem(CACHE_KEY_CUSTOMERS, JSON.stringify(customers));
-  } catch (err) {
-    console.error('Error saving cached customers:', err);
-  }
+  await setCached(CACHE_KEY_CUSTOMERS, customers);
 };
 
 /**
@@ -164,21 +213,11 @@ export const removeCachedCustomer = async (customerId) => {
    ========================================================================== */
 
 export const getCachedCustomerDetail = async (customerId) => {
-  try {
-    const raw = await storage.getItem(getCustomerDetailKey(customerId));
-    return raw ? JSON.parse(raw) : null;
-  } catch (err) {
-    console.error(`Error reading cached detail for customer ${customerId}:`, err);
-    return null;
-  }
+  return await getCached(getCustomerDetailKey(customerId));
 };
 
 export const saveCachedCustomerDetail = async (customerId, data) => {
-  try {
-    await storage.setItem(getCustomerDetailKey(customerId), JSON.stringify(data));
-  } catch (err) {
-    console.error(`Error saving cached detail for customer ${customerId}:`, err);
-  }
+  await setCached(getCustomerDetailKey(customerId), data);
 };
 
 /**
@@ -277,21 +316,11 @@ export const deleteOptimisticEntry = async (customerId, entryId) => {
    ========================================================================== */
 
 export const getCachedItems = async () => {
-  try {
-    const raw = await storage.getItem(CACHE_KEY_ITEMS);
-    return raw ? JSON.parse(raw) : null;
-  } catch (err) {
-    console.error('Error reading cached items:', err);
-    return null;
-  }
+  return await getCached(CACHE_KEY_ITEMS);
 };
 
 export const saveCachedItems = async (items) => {
-  try {
-    await storage.setItem(CACHE_KEY_ITEMS, JSON.stringify(items));
-  } catch (err) {
-    console.error('Error saving cached items:', err);
-  }
+  await setCached(CACHE_KEY_ITEMS, items);
 };
 
 export const upsertCachedItem = async (item) => {

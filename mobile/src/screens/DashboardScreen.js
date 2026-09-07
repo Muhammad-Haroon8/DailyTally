@@ -16,15 +16,19 @@ import Card from '../components/Card';
 import PrimaryButton from '../components/PrimaryButton';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
+import UpdatingIndicator from '../components/UpdatingIndicator';
 import { colors, typography, spacing } from '../constants/theme';
-import { getCustomers } from '../api/customerApi';
+import { getCustomers, getAnalyticsSummary } from '../api/customerApi';
+import { getCachedCustomers, getCachedAnalyticsSummary } from '../storage/localCache';
 
 export default function DashboardScreen({ navigation }) {
 
   const [customers, setCustomers] = useState([]);
+  const [analytics, setAnalytics] = useState({ totalUdhaar: 0, totalWasool: 0, totalBaqaya: 0 });
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isBackgroundUpdating, setIsBackgroundUpdating] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   const fetchCustomerList = useCallback(async (query = '', isRefresh = false) => {
@@ -32,18 +36,47 @@ export default function DashboardScreen({ navigation }) {
       if (isRefresh) {
         setIsRefreshing(true);
       } else {
-        setIsLoading(true);
+        // Fast instant cache load if no query
+        if (!query) {
+          const [cachedCustomers, cachedAnalytics] = await Promise.all([
+            getCachedCustomers(),
+            getCachedAnalyticsSummary(),
+          ]);
+          if (cachedAnalytics) {
+            setAnalytics(cachedAnalytics);
+          }
+          if (cachedCustomers && cachedCustomers.length > 0) {
+            setCustomers(cachedCustomers);
+            setIsLoading(false);
+            setIsBackgroundUpdating(true);
+          } else {
+            setIsLoading(true);
+          }
+        }
       }
       setErrorMessage('');
-      const data = await getCustomers(query);
-      setCustomers(data);
+
+      // Fetch customers & analytics in parallel
+      const [customersData, analyticsData] = await Promise.all([
+        getCustomers(query),
+        getAnalyticsSummary(),
+      ]);
+
+      setCustomers(customersData);
+      if (analyticsData) {
+        setAnalytics(analyticsData);
+      }
     } catch (error) {
-      setErrorMessage(error.message);
+      // If we already have customers displayed from cache, don't show disruptive error banner
+      if (customers.length === 0) {
+        setErrorMessage(error.message);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      setIsBackgroundUpdating(false);
     }
-  }, []);
+  }, [customers.length]);
 
   // Refresh customer list whenever returning to Dashboard
   useEffect(() => {
@@ -136,6 +169,56 @@ export default function DashboardScreen({ navigation }) {
         />
       </View>
 
+      {/* Business-wide Analytics Summary Card */}
+      <View style={styles.analyticsCardWrapper}>
+        <Card style={styles.analyticsCard}>
+          <View style={styles.analyticsColsRow}>
+            {/* Kul Udhaar */}
+            <View style={styles.analyticsCol}>
+              <Text style={styles.analyticsLabel}>Kul Udhaar</Text>
+              <Text style={[styles.analyticsValue, styles.textDebit]}>
+                Rs. {(analytics?.totalUdhaar || 0).toLocaleString()}
+              </Text>
+            </View>
+
+            <View style={styles.analyticsDivider} />
+
+            {/* Kul Wasool */}
+            <View style={styles.analyticsCol}>
+              <Text style={styles.analyticsLabel}>Kul Wasool</Text>
+              <Text style={[styles.analyticsValue, styles.textCredit]}>
+                Rs. {(analytics?.totalWasool || 0).toLocaleString()}
+              </Text>
+            </View>
+          </View>
+
+          {/* Kul Baqaya (Remaining Market Balance) Highlight Bar */}
+          <View style={styles.analyticsHighlightBar}>
+            <View style={styles.analyticsHighlightLeft}>
+              <Text style={styles.analyticsHighlightIcon}>📊</Text>
+              <Text style={styles.analyticsHighlightLabel}>Market Baqaya:</Text>
+            </View>
+            <Text
+              style={[
+                styles.analyticsHighlightValue,
+                (analytics?.totalBaqaya || 0) > 0
+                  ? styles.balanceDanger
+                  : (analytics?.totalBaqaya || 0) < 0
+                    ? styles.balanceCredit
+                    : styles.balanceZero,
+              ]}
+            >
+              Rs. {Math.abs(analytics?.totalBaqaya || 0).toLocaleString()}
+              {(analytics?.totalBaqaya || 0) > 0
+                ? ' (Market Udhaar)'
+                : (analytics?.totalBaqaya || 0) < 0
+                  ? ' (Advance)'
+                  : ' (Saaf)'}
+            </Text>
+          </View>
+        </Card>
+      </View>
+
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchInputWrapper}>
@@ -159,6 +242,11 @@ export default function DashboardScreen({ navigation }) {
           ) : null}
         </View>
       </View>
+
+      {/* Subtle Background Sync Indicator */}
+      {isBackgroundUpdating ? (
+        <UpdatingIndicator message="Gahak list update ho rahi hai..." />
+      ) : null}
 
       {/* Error Banner with Retry Button */}
       {errorMessage ? (
@@ -372,5 +460,84 @@ const styles = StyleSheet.create({
   retryButton: {
     paddingVertical: 8,
     alignSelf: 'center',
+  },
+  // Business-wide Analytics Card Styles
+  analyticsCardWrapper: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+  },
+  analyticsCard: {
+    backgroundColor: '#FAF9F6',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  analyticsColsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  analyticsCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  analyticsLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  analyticsValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  analyticsDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: colors.border,
+  },
+  analyticsHighlightBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: spacing.sm,
+    paddingHorizontal: 2,
+  },
+  analyticsHighlightLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  analyticsHighlightIcon: {
+    fontSize: 13,
+  },
+  analyticsHighlightLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  analyticsHighlightValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  balanceDanger: {
+    color: colors.danger,
+  },
+  balanceCredit: {
+    color: colors.success,
+  },
+  balanceZero: {
+    color: colors.textPrimary,
+  },
+  textDebit: {
+    color: colors.danger,
+  },
+  textCredit: {
+    color: colors.success,
   },
 });

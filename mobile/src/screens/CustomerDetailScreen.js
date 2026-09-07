@@ -5,7 +5,7 @@
 // - Each card shows: Month Label, Month Net total, and Closing Balance
 // - Tapping a month card navigates to MonthDetailScreen
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,9 +18,12 @@ import Card from '../components/Card';
 import PrimaryButton from '../components/PrimaryButton';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
+import UpdatingIndicator from '../components/UpdatingIndicator';
 import { colors, typography, spacing } from '../constants/theme';
 import { getEntriesByCustomer } from '../api/entryApi';
+import { getCachedCustomerDetail } from '../storage/localCache';
 import SendReportModal from '../components/SendReportModal';
+import EntryTypeFilter from '../components/EntryTypeFilter';
 
 export default function CustomerDetailScreen({ route, navigation }) {
   const { customerId, customerName: initialName } = route.params || {};
@@ -30,26 +33,42 @@ export default function CustomerDetailScreen({ route, navigation }) {
   const [isReportModalVisible, setIsReportModalVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isBackgroundUpdating, setIsBackgroundUpdating] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [entryTypeFilter, setEntryTypeFilter] = useState('all'); // 'all' | 'item' | 'payment'
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const loadData = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) {
         setIsRefreshing(true);
       } else {
-        setIsLoading(true);
+        // Fast instant cache load
+        const cached = await getCachedCustomerDetail(customerId);
+        if (cached && (cached.customer || cached.months)) {
+          if (cached.customer) setCustomer(cached.customer);
+          if (cached.months) setMonths(cached.months);
+          setIsLoading(false);
+          setIsBackgroundUpdating(true);
+        } else {
+          setIsLoading(true);
+        }
       }
       setErrorMessage('');
+
       const data = await getEntriesByCustomer(customerId);
       setCustomer(data.customer);
       setMonths(data.months || []);
     } catch (error) {
-      setErrorMessage(error.message);
+      if (months.length === 0) {
+        setErrorMessage(error.message);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      setIsBackgroundUpdating(false);
     }
-  }, [customerId]);
+  }, [customerId, months.length]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -58,12 +77,57 @@ export default function CustomerDetailScreen({ route, navigation }) {
     return unsubscribe;
   }, [navigation, loadData]);
 
-  const balance = customer.balance || 0;
+  const balance = customer?.balance || 0;
+
+  // Overall entries count across all months
+  const filterCounts = useMemo(() => {
+    let item = 0;
+    let payment = 0;
+    let all = 0;
+    months.forEach((m) => {
+      (m.entries || []).forEach((e) => {
+        all++;
+        if (e.type === 'item') item++;
+        else if (e.type === 'payment') payment++;
+      });
+    });
+    return { all, item, payment };
+  }, [months]);
+
+  // Filtered months list: if a month has 0 matching entries under the current filter, hide that month
+  const filteredMonths = useMemo(() => {
+    if (entryTypeFilter === 'all') return months;
+
+    return months
+      .map((m) => {
+        const matchingEntries = (m.entries || []).filter(
+          (e) => e.type === entryTypeFilter
+        );
+        if (matchingEntries.length === 0) return null;
+
+        // Compute scoped net for this month under the filter
+        const filteredNet = matchingEntries.reduce((sum, e) => {
+          return sum + (e.type === 'item' ? e.amount : -e.amount);
+        }, 0);
+
+        return {
+          ...m,
+          filteredEntries: matchingEntries,
+          displayNet: filteredNet,
+        };
+      })
+      .filter(Boolean);
+  }, [months, entryTypeFilter]);
 
   // Render a Month Card in the vertical list
   const renderMonthCard = ({ item: monthItem }) => {
-    const isDebit = monthItem.monthNet > 0;
-    const isCredit = monthItem.monthNet < 0;
+    const displayNet =
+      monthItem.displayNet !== undefined ? monthItem.displayNet : monthItem.monthNet;
+    const isDebit = displayNet > 0;
+    const isCredit = displayNet < 0;
+    const displayEntriesCount = monthItem.filteredEntries
+      ? monthItem.filteredEntries.length
+      : monthItem.entries.length;
 
     return (
       <TouchableOpacity
@@ -92,13 +156,13 @@ export default function CustomerDetailScreen({ route, navigation }) {
                     isDebit ? styles.textDebit : isCredit ? styles.textCredit : styles.textNeutral,
                   ]}
                 >
-                  {monthItem.monthNet >= 0
-                    ? `+Rs. ${monthItem.monthNet.toLocaleString()}`
-                    : `-Rs. ${Math.abs(monthItem.monthNet).toLocaleString()}`}
+                  {displayNet >= 0
+                    ? `+Rs. ${displayNet.toLocaleString()}`
+                    : `-Rs. ${Math.abs(displayNet).toLocaleString()}`}
                 </Text>
               </Text>
               <Text style={styles.monthEntriesCountText}>
-                {monthItem.entries.length} {monthItem.entries.length === 1 ? 'entry' : 'entries'}
+                {displayEntriesCount} {displayEntriesCount === 1 ? 'entry' : 'entries'}
               </Text>
             </View>
           </View>
@@ -270,6 +334,11 @@ export default function CustomerDetailScreen({ route, navigation }) {
         </View>
       </View>
 
+      {/* Subtle Background Sync Indicator */}
+      {isBackgroundUpdating ? (
+        <UpdatingIndicator message="Gahak ka hisab update ho raha hai..." />
+      ) : null}
+
       {/* Error Message with Retry */}
       {errorMessage ? (
         <View style={styles.errorContainer}>
@@ -283,9 +352,16 @@ export default function CustomerDetailScreen({ route, navigation }) {
         </View>
       ) : null}
 
-      {/* List Header Title */}
+      {/* List Header Title with Filter */}
       <View style={styles.listHeaderBar}>
-        <Text style={styles.listHeaderTitle}>Mahinawaar Hisab (Months List)</Text>
+        <EntryTypeFilter
+          filter={entryTypeFilter}
+          onChangeFilter={(f) => setEntryTypeFilter(f)}
+          isOpen={isFilterOpen}
+          onToggleOpen={() => setIsFilterOpen((prev) => !prev)}
+          counts={filterCounts}
+          title="🗓️ Mahinawaar Hisab (Months List)"
+        />
         <Text style={styles.listHeaderSubtitle}>Mahine par tap kar ke tafseel dekhein</Text>
       </View>
 
@@ -294,11 +370,11 @@ export default function CustomerDetailScreen({ route, navigation }) {
         <LoadingSpinner message="Loading mahinawaar hisab..." />
       ) : (
         <FlatList
-          data={months}
+          data={filteredMonths}
           keyExtractor={(item) => item.monthKey}
           renderItem={renderMonthCard}
           contentContainerStyle={
-            months.length === 0
+            filteredMonths.length === 0
               ? styles.emptyListContainer
               : styles.listContainer
           }
@@ -310,11 +386,21 @@ export default function CustomerDetailScreen({ route, navigation }) {
             />
           }
           ListEmptyComponent={
-            <EmptyState
-              icon="📝"
-              title="Abhi koi entry nahi hui"
-              subtitle="Upar diye gaye buttons 'Add Item' ya 'Wasool Raqam' se pehli entry shuru karein."
-            />
+            entryTypeFilter !== 'all' ? (
+              <EmptyState
+                icon="🔍"
+                title="Is filter ke mutabiq koi entry nahi mili"
+                subtitle={`Gahak ke hisab me koi ${entryTypeFilter === 'item' ? 'Udhaar' : 'Wasool'} entry moujood nahi hai.`}
+                actionLabel="Sab Entries Dekhein"
+                onAction={() => setEntryTypeFilter('all')}
+              />
+            ) : (
+              <EmptyState
+                icon="📝"
+                title="Abhi koi entry nahi hui"
+                subtitle="Upar diye gaye buttons 'Add Item' ya 'Wasool Raqam' se pehli entry shuru karein."
+              />
+            )
           }
         />
       )}

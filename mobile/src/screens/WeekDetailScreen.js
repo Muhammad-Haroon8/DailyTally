@@ -19,9 +19,12 @@ import {
 import Card from '../components/Card';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
+import UpdatingIndicator from '../components/UpdatingIndicator';
 import SendReportModal from '../components/SendReportModal';
+import EntryTypeFilter from '../components/EntryTypeFilter';
 import { colors, typography, spacing } from '../constants/theme';
 import { getEntriesByCustomer, deleteEntry } from '../api/entryApi';
+import { getCachedCustomerDetail } from '../storage/localCache';
 
 export default function WeekDetailScreen({ route, navigation }) {
   const {
@@ -30,17 +33,47 @@ export default function WeekDetailScreen({ route, navigation }) {
     monthKey,
     monthLabel,
     weekNum,
-    startDay,
-    endDay,
+    startDay: paramStartDay,
+    endDay: paramEndDay,
     weekLabel,
     dateRange,
+    initialMonthData,
   } = route.params || {};
 
-  const [entries, setEntries] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Defensive week boundaries fallback if startDay/endDay were somehow not passed
+  const { startDay, endDay } = useMemo(() => {
+    if (paramStartDay && paramEndDay) {
+      return { startDay: Number(paramStartDay), endDay: Number(paramEndDay) };
+    }
+    const defaultWeeks = {
+      1: { startDay: 1, endDay: 7 },
+      2: { startDay: 8, endDay: 14 },
+      3: { startDay: 15, endDay: 21 },
+      4: { startDay: 22, endDay: 28 },
+      5: { startDay: 29, endDay: 31 },
+    };
+    return defaultWeeks[weekNum] || { startDay: 1, endDay: 31 };
+  }, [paramStartDay, paramEndDay, weekNum]);
+
+  // Initial calculation from initialMonthData if provided
+  const initialEntries = useMemo(() => {
+    if (initialMonthData && initialMonthData.entries) {
+      return initialMonthData.entries.filter((entry) => {
+        const d = new Date(entry.entryDate);
+        const day = d.getDate();
+        return day >= startDay && day <= endDay;
+      });
+    }
+    return [];
+  }, [initialMonthData, startDay, endDay]);
+
+  const [entries, setEntries] = useState(initialEntries);
+  const [isLoading, setIsLoading] = useState(initialEntries.length === 0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [isBackgroundUpdating, setIsBackgroundUpdating] = useState(false);
   const [isReportModalVisible, setIsReportModalVisible] = useState(false);
+  const [entryTypeFilter, setEntryTypeFilter] = useState('all'); // 'all' | 'item' | 'payment'
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   // Compute exact date range for this opened week
   const weekRange = useMemo(() => {
@@ -59,9 +92,26 @@ export default function WeekDetailScreen({ route, navigation }) {
       if (isRefresh) {
         setIsRefreshing(true);
       } else {
-        setIsLoading(true);
+        // Fast local cache read first if no entries displayed yet
+        const cached = await getCachedCustomerDetail(customerId);
+        const targetMonth = (cached?.months || []).find((m) => m.monthKey === monthKey);
+        if (targetMonth && targetMonth.entries) {
+          const weekEntries = targetMonth.entries.filter((entry) => {
+            const d = new Date(entry.entryDate);
+            const day = d.getDate();
+            return day >= startDay && day <= endDay;
+          });
+          setEntries(weekEntries);
+          setIsLoading(false);
+          setIsBackgroundUpdating(true);
+        } else if (entries.length === 0) {
+          setIsLoading(true);
+        } else {
+          setIsBackgroundUpdating(true);
+        }
       }
       setErrorMessage('');
+
       const data = await getEntriesByCustomer(customerId);
       const targetMonth = (data.months || []).find((m) => m.monthKey === monthKey);
 
@@ -77,12 +127,15 @@ export default function WeekDetailScreen({ route, navigation }) {
         setEntries([]);
       }
     } catch (error) {
-      setErrorMessage(error.message);
+      if (entries.length === 0) {
+        setErrorMessage(error.message);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      setIsBackgroundUpdating(false);
     }
-  }, [customerId, monthKey, startDay, endDay]);
+  }, [customerId, monthKey, startDay, endDay, entries.length]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -121,11 +174,27 @@ export default function WeekDetailScreen({ route, navigation }) {
     };
   }, [entries]);
 
-  // Group entries into day-wise sections (newest date first)
+  // Filter counts
+  const filterCounts = useMemo(() => {
+    let item = 0;
+    let payment = 0;
+    entries.forEach((e) => {
+      if (e.type === 'item') item++;
+      else if (e.type === 'payment') payment++;
+    });
+    return { all: entries.length, item, payment };
+  }, [entries]);
+
+  // Group entries into day-wise sections (newest date first) with client-side filter applied
   const dayWiseGroups = useMemo(() => {
     const groups = {};
 
     entries.forEach((entry) => {
+      // Apply client-side entry type filter
+      if (entryTypeFilter !== 'all' && entry.type !== entryTypeFilter) {
+        return;
+      }
+
       const dateObj = new Date(entry.entryDate);
       const dateKey = dateObj.toISOString().split('T')[0];
 
@@ -154,7 +223,7 @@ export default function WeekDetailScreen({ route, navigation }) {
     return Object.values(groups).sort(
       (a, b) => new Date(b.dateKey) - new Date(a.dateKey)
     );
-  }, [entries]);
+  }, [entries, entryTypeFilter]);
 
   const handleEntryActions = (entry) => {
     Alert.alert(
@@ -216,6 +285,10 @@ export default function WeekDetailScreen({ route, navigation }) {
 
   const renderHeader = () => (
     <View style={styles.topSection}>
+      {isBackgroundUpdating ? (
+        <UpdatingIndicator message="Taza hafte ka hisab update ho raha hai..." />
+      ) : null}
+
       {/* Weekly Stats Card */}
       <Card style={styles.weekOverviewCard}>
         <View style={styles.overviewTopRow}>
@@ -237,44 +310,58 @@ export default function WeekDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        <View style={styles.overviewStatsRow}>
-          <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Is Hafte Ka Udhaar</Text>
-            <Text style={[styles.statValue, styles.statValueDebit]}>
-              Rs. {weeklyTotals.totalUdhaar.toLocaleString()}
-            </Text>
+        {/* Weekly Financial Overview Stats: Is Hafte Ka Udhaar, Wasool in top row & Net below */}
+        <View style={styles.financialSummaryCard}>
+          <View style={styles.financialColsRow}>
+            {/* Is Hafte Ka Udhaar */}
+            <View style={styles.financialCol}>
+              <Text style={styles.financialLabel}>Is Hafte Ka Udhaar</Text>
+              <Text style={[styles.financialValue, styles.textDebit]}>
+                Rs. {weeklyTotals.totalUdhaar.toLocaleString()}
+              </Text>
+            </View>
+
+            <View style={styles.financialDivider} />
+
+            {/* Is Hafte Ka Wasool */}
+            <View style={styles.financialCol}>
+              <Text style={styles.financialLabel}>Is Hafte Ka Wasool</Text>
+              <Text style={[styles.financialValue, styles.textCredit]}>
+                Rs. {weeklyTotals.totalWasool.toLocaleString()}
+              </Text>
+            </View>
           </View>
 
-          <View style={styles.statDivider} />
-
-          <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Is Hafte Ka Wasool</Text>
-            <Text style={[styles.statValue, styles.statValueCredit]}>
-              Rs. {weeklyTotals.totalWasool.toLocaleString()}
-            </Text>
-          </View>
-
-          <View style={styles.statDivider} />
-
-          <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Is Hafte Ka Net</Text>
+          {/* Is Hafte Ka Net Highlight Bar */}
+          <View style={styles.balanceHighlightBar}>
+            <Text style={styles.balanceHighlightLabel}>Is Hafte Ka Net:</Text>
             <Text
               style={[
-                styles.statValue,
+                styles.balanceHighlightValue,
                 weeklyTotals.net > 0
-                  ? styles.statValueDebit
+                  ? styles.balanceDanger
                   : weeklyTotals.net < 0
-                    ? styles.statValueCredit
-                    : styles.statValueNeutral,
+                    ? styles.balanceCredit
+                    : styles.balanceZero,
               ]}
             >
-              {weeklyTotals.net >= 0 ? `+Rs. ${weeklyTotals.net.toLocaleString()}` : `-Rs. ${Math.abs(weeklyTotals.net).toLocaleString()}`}
+              {weeklyTotals.net >= 0
+                ? `+Rs. ${weeklyTotals.net.toLocaleString()}`
+                : `-Rs. ${Math.abs(weeklyTotals.net).toLocaleString()}`}
             </Text>
           </View>
         </View>
       </Card>
 
-      <Text style={styles.sectionHeaderTitle}>📅 Is Hafte Ke Din-Ba-Din Entries</Text>
+      {/* Filter Header and Chips */}
+      <EntryTypeFilter
+        filter={entryTypeFilter}
+        onChangeFilter={(f) => setEntryTypeFilter(f)}
+        isOpen={isFilterOpen}
+        onToggleOpen={() => setIsFilterOpen((prev) => !prev)}
+        counts={filterCounts}
+        title="📅 Is Hafte Ke Din-Ba-Din Entries"
+      />
     </View>
   );
 
@@ -388,11 +475,21 @@ export default function WeekDetailScreen({ route, navigation }) {
             />
           }
           ListEmptyComponent={
-            <EmptyState
-              icon="📝"
-              title="Is hafte koi entry nahi hai"
-              subtitle="Pichle screen par ja kar entry add karein."
-            />
+            entryTypeFilter !== 'all' ? (
+              <EmptyState
+                icon="🔍"
+                title="Is filter ke mutabiq koi entry nahi mili"
+                subtitle={`Is hafte koi ${entryTypeFilter === 'item' ? 'Udhaar' : 'Wasool'} entry moujood nahi hai.`}
+                actionLabel="Sab Entries Dekhein"
+                onAction={() => setEntryTypeFilter('all')}
+              />
+            ) : (
+              <EmptyState
+                icon="📝"
+                title="Is hafte koi entry nahi hai"
+                subtitle="Pichle screen par ja kar entry add karein."
+              />
+            )
           }
         />
       )}
@@ -478,37 +575,75 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.primary,
   },
-  overviewStatsRow: {
+  financialSummaryCard: {
+    backgroundColor: '#FAF9F6',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  financialColsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  statBox: {
-    alignItems: 'center',
+  financialCol: {
     flex: 1,
+    alignItems: 'center',
   },
-  statDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: colors.border,
-  },
-  statLabel: {
-    fontSize: 11,
+  financialLabel: {
+    fontSize: 12,
     color: colors.textSecondary,
+    fontWeight: '600',
     marginBottom: 4,
-    fontWeight: '500',
+    textAlign: 'center',
   },
-  statValue: {
-    fontSize: 15,
+  financialValue: {
+    fontSize: 17,
     fontWeight: 'bold',
   },
-  statValueDebit: {
+  financialDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: colors.border,
+  },
+  balanceHighlightBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: spacing.sm,
+    paddingHorizontal: 4,
+  },
+  balanceHighlightLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  balanceHighlightValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  balanceDanger: {
     color: colors.danger,
   },
-  statValueCredit: {
+  balanceCredit: {
     color: colors.success,
   },
-  statValueNeutral: {
+  balanceZero: {
+    color: colors.textPrimary,
+  },
+  textDebit: {
+    color: colors.danger,
+  },
+  textCredit: {
+    color: colors.success,
+  },
+  textNeutral: {
     color: colors.textSecondary,
   },
   sectionHeaderTitle: {

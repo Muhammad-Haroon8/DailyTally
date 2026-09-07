@@ -15,13 +15,16 @@ import Card from '../components/Card';
 import PrimaryButton from '../components/PrimaryButton';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
+import UpdatingIndicator from '../components/UpdatingIndicator';
 import { colors, typography, spacing } from '../constants/theme';
 import { getItems, deleteItem } from '../api/itemApi';
+import { getCachedItems } from '../storage/localCache';
 
 export default function ManageItemsScreen({ navigation }) {
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isBackgroundUpdating, setIsBackgroundUpdating] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   const fetchItems = useCallback(async (isRefresh = false) => {
@@ -29,18 +32,30 @@ export default function ManageItemsScreen({ navigation }) {
       if (isRefresh) {
         setIsRefreshing(true);
       } else {
-        setIsLoading(true);
+        // Fast instant cache load
+        const cached = await getCachedItems();
+        if (cached && cached.length > 0) {
+          setItems(cached);
+          setIsLoading(false);
+          setIsBackgroundUpdating(true);
+        } else {
+          setIsLoading(true);
+        }
       }
       setErrorMessage('');
+
       const data = await getItems();
       setItems(data);
     } catch (error) {
-      setErrorMessage(error.message);
+      if (items.length === 0) {
+        setErrorMessage(error.message);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      setIsBackgroundUpdating(false);
     }
-  }, []);
+  }, [items.length]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -127,6 +142,11 @@ export default function ManageItemsScreen({ navigation }) {
           textStyle={styles.addItemText}
         />
       </View>
+
+      {/* Subtle Background Sync Indicator */}
+      {isBackgroundUpdating ? (
+        <UpdatingIndicator message="Items catalog update ho raha hai..." />
+      ) : null}
 
       {/* Error display with Retry button */}
       {errorMessage ? (

@@ -8,12 +8,43 @@ import {
   saveCachedCustomers,
   upsertCachedCustomer,
   removeCachedCustomer,
+  getCachedAnalyticsSummary,
+  saveCachedAnalyticsSummary,
 } from '../storage/localCache';
 import { addToQueue, generateLocalId } from '../storage/offlineQueue';
 
 const checkIsOnline = async () => {
   const state = await NetInfo.fetch();
   return Boolean(state.isConnected && state.isInternetReachable !== false);
+};
+
+/**
+ * Fetches aggregated business-wide analytics: totalUdhaar, totalWasool, and totalBaqaya.
+ * Uses cache fallback if offline or network fails.
+ * @returns {Promise<{ totalUdhaar: number, totalWasool: number, totalBaqaya: number }>}
+ */
+export const getAnalyticsSummary = async () => {
+  const online = await checkIsOnline();
+
+  if (online) {
+    try {
+      const response = await apiClient.get('/customers/analytics/summary');
+      if (response.data) {
+        await saveCachedAnalyticsSummary(response.data);
+      }
+      return response.data;
+    } catch (error) {
+      console.warn('Online getAnalyticsSummary failed, attempting cache fallback:', error.message);
+    }
+  }
+
+  // Fallback to local cache
+  const cached = await getCachedAnalyticsSummary();
+  if (cached) {
+    return cached;
+  }
+
+  return { totalUdhaar: 0, totalWasool: 0, totalBaqaya: 0 };
 };
 
 /**

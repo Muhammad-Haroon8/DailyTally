@@ -21,9 +21,12 @@ import Card from '../components/Card';
 import PrimaryButton from '../components/PrimaryButton';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
+import UpdatingIndicator from '../components/UpdatingIndicator';
 import SendReportModal from '../components/SendReportModal';
+import EntryTypeFilter from '../components/EntryTypeFilter';
 import { colors, typography, spacing } from '../constants/theme';
 import { getEntriesByCustomer, deleteEntry } from '../api/entryApi';
+import { getCachedCustomerDetail } from '../storage/localCache';
 
 export default function MonthDetailScreen({ route, navigation }) {
   const { customerId, customerName, monthKey, initialMonthData } = route.params || {};
@@ -31,8 +34,11 @@ export default function MonthDetailScreen({ route, navigation }) {
   const [monthData, setMonthData] = useState(initialMonthData || null);
   const [isLoading, setIsLoading] = useState(!initialMonthData);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isBackgroundUpdating, setIsBackgroundUpdating] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isReportModalVisible, setIsReportModalVisible] = useState(false);
+  const [entryTypeFilter, setEntryTypeFilter] = useState('all'); // 'all' | 'item' | 'payment'
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   // Compute exact date range for this opened month
   const monthRange = useMemo(() => {
@@ -52,19 +58,34 @@ export default function MonthDetailScreen({ route, navigation }) {
       if (isRefresh) {
         setIsRefreshing(true);
       } else if (!monthData) {
-        setIsLoading(true);
+        // Check local cache immediately for this customer's months
+        const cached = await getCachedCustomerDetail(customerId);
+        const cachedMonth = (cached?.months || []).find((m) => m.monthKey === monthKey);
+        if (cachedMonth) {
+          setMonthData(cachedMonth);
+          setIsLoading(false);
+          setIsBackgroundUpdating(true);
+        } else {
+          setIsLoading(true);
+        }
+      } else {
+        setIsBackgroundUpdating(true);
       }
       setErrorMessage('');
+
       const data = await getEntriesByCustomer(customerId);
       const targetMonth = (data.months || []).find((m) => m.monthKey === monthKey);
       if (targetMonth) {
         setMonthData(targetMonth);
       }
     } catch (error) {
-      setErrorMessage(error.message);
+      if (!monthData) {
+        setErrorMessage(error.message);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      setIsBackgroundUpdating(false);
     }
   }, [customerId, monthKey, monthData]);
 
@@ -123,13 +144,30 @@ export default function MonthDetailScreen({ route, navigation }) {
       }));
   }, [monthData]);
 
-  // 2. Group entries into Day-wise cards (newest date first)
+  // Filter counts
+  const filterCounts = useMemo(() => {
+    if (!monthData || !monthData.entries) return { all: 0, item: 0, payment: 0 };
+    let item = 0;
+    let payment = 0;
+    monthData.entries.forEach((e) => {
+      if (e.type === 'item') item++;
+      else if (e.type === 'payment') payment++;
+    });
+    return { all: monthData.entries.length, item, payment };
+  }, [monthData]);
+
+  // 2. Group entries into Day-wise cards (newest date first) with client-side filter applied
   const dayWiseGroups = useMemo(() => {
     if (!monthData || !monthData.entries) return [];
 
     const groups = {};
 
     monthData.entries.forEach((entry) => {
+      // Apply client-side entry type filter
+      if (entryTypeFilter !== 'all' && entry.type !== entryTypeFilter) {
+        return;
+      }
+
       const dateObj = new Date(entry.entryDate);
       const dateKey = dateObj.toISOString().split('T')[0];
 
@@ -158,7 +196,7 @@ export default function MonthDetailScreen({ route, navigation }) {
     return Object.values(groups).sort(
       (a, b) => new Date(b.dateKey) - new Date(a.dateKey)
     );
-  }, [monthData]);
+  }, [monthData, entryTypeFilter]);
 
   const handleEntryActions = (entry) => {
     Alert.alert(
@@ -220,6 +258,10 @@ export default function MonthDetailScreen({ route, navigation }) {
 
   const renderHeader = () => (
     <View style={styles.topSection}>
+      {isBackgroundUpdating ? (
+        <UpdatingIndicator message="Taza mahine ka hisab update ho raha hai..." />
+      ) : null}
+
       {/* Month Overview Card */}
       <Card style={styles.monthOverviewCard}>
         <View style={styles.overviewTopRow}>
@@ -236,44 +278,44 @@ export default function MonthDetailScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Month Financial Overview Stats: Is Mahine Ka Udhaar, Wasool, Net & Closing */}
-        <View style={styles.overviewStatsRow}>
-          <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Is Mahine Ka Udhaar</Text>
-            <Text style={[styles.statValue, styles.statValueDebit]}>
-              Rs. {(monthData?.monthUdhaar || 0).toLocaleString()}
-            </Text>
+        {/* Month Financial Overview Stats: Is Mahine Ka Udhaar, Wasool in top row & Net below */}
+        <View style={styles.financialSummaryCard}>
+          <View style={styles.financialColsRow}>
+            {/* Is Mahine Ka Udhaar */}
+            <View style={styles.financialCol}>
+              <Text style={styles.financialLabel}>Is Mahine Ka Udhaar</Text>
+              <Text style={[styles.financialValue, styles.textDebit]}>
+                Rs. {(monthData?.monthUdhaar || 0).toLocaleString()}
+              </Text>
+            </View>
+
+            <View style={styles.financialDivider} />
+
+            {/* Is Mahine Ka Wasool */}
+            <View style={styles.financialCol}>
+              <Text style={styles.financialLabel}>Is Mahine Ka Wasool</Text>
+              <Text style={[styles.financialValue, styles.textCredit]}>
+                Rs. {(monthData?.monthWasool || 0).toLocaleString()}
+              </Text>
+            </View>
           </View>
 
-          <View style={styles.statDivider} />
-
-          <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Is Mahine Ka Wasool</Text>
-            <Text style={[styles.statValue, styles.statValueCredit]}>
-              Rs. {(monthData?.monthWasool || 0).toLocaleString()}
-            </Text>
-          </View>
-
-          <View style={styles.statDivider} />
-
-          <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Is Mahine Ka Net</Text>
+          {/* Is Mahine Ka Net Highlight Bar */}
+          <View style={styles.balanceHighlightBar}>
+            <Text style={styles.balanceHighlightLabel}>Is Mahine Ka Net:</Text>
             <Text
               style={[
-                styles.statValue,
-                (monthData?.monthNet || 0) > 0 ? styles.statValueDebit : (monthData?.monthNet || 0) < 0 ? styles.statValueCredit : styles.statValueNeutral,
+                styles.balanceHighlightValue,
+                (monthData?.monthNet || 0) > 0
+                  ? styles.balanceDanger
+                  : (monthData?.monthNet || 0) < 0
+                    ? styles.balanceCredit
+                    : styles.balanceZero,
               ]}
             >
-              {(monthData?.monthNet || 0) >= 0 ? `+Rs. ${(monthData?.monthNet || 0).toLocaleString()}` : `-Rs. ${Math.abs(monthData?.monthNet || 0).toLocaleString()}`}
-            </Text>
-          </View>
-
-          <View style={styles.statDivider} />
-
-          <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Closing Balance</Text>
-            <Text style={[styles.statValue, styles.statValuePrimary]}>
-              Rs. {(monthData?.closingBalance || 0).toLocaleString()}
+              {(monthData?.monthNet || 0) >= 0
+                ? `+Rs. ${(monthData?.monthNet || 0).toLocaleString()}`
+                : `-Rs. ${Math.abs(monthData?.monthNet || 0).toLocaleString()}`}
             </Text>
           </View>
         </View>
@@ -340,6 +382,9 @@ export default function MonthDetailScreen({ route, navigation }) {
                     weekLabel: w.label,
                     dateRange: w.dateRange,
                     weekNum: w.weekNum,
+                    startDay: w.startDay,
+                    endDay: w.endDay,
+                    initialMonthData: monthData,
                   })
                 }
               >
@@ -366,7 +411,15 @@ export default function MonthDetailScreen({ route, navigation }) {
         </View>
       ) : null}
 
-      <Text style={styles.sectionHeaderTitle}>📅 Day-wise Entries</Text>
+      {/* Day-wise Entries Section with Filter Header */}
+      <EntryTypeFilter
+        filter={entryTypeFilter}
+        onChangeFilter={(f) => setEntryTypeFilter(f)}
+        isOpen={isFilterOpen}
+        onToggleOpen={() => setIsFilterOpen((prev) => !prev)}
+        counts={filterCounts}
+        title="📅 Day-wise Entries"
+      />
     </View>
   );
 
@@ -486,11 +539,21 @@ export default function MonthDetailScreen({ route, navigation }) {
             />
           }
           ListEmptyComponent={
-            <EmptyState
-              icon="📝"
-              title="Is mahine koi entry nahi hai"
-              subtitle="Pichle screen par ja kar entry add karein."
-            />
+            entryTypeFilter !== 'all' ? (
+              <EmptyState
+                icon="🔍"
+                title="Is filter ke mutabiq koi entry nahi mili"
+                subtitle={`Is mahine koi ${entryTypeFilter === 'item' ? 'Udhaar' : 'Wasool'} entry moujood nahi hai.`}
+                actionLabel="Sab Entries Dekhein"
+                onAction={() => setEntryTypeFilter('all')}
+              />
+            ) : (
+              <EmptyState
+                icon="📝"
+                title="Is mahine koi entry nahi hai"
+                subtitle="Pichle screen par ja kar entry add karein."
+              />
+            )
           }
         />
       )}
@@ -561,41 +624,75 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  overviewStatsRow: {
+  financialSummaryCard: {
+    backgroundColor: '#FAF9F6',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  financialColsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  statBox: {
-    alignItems: 'center',
+  financialCol: {
     flex: 1,
+    alignItems: 'center',
   },
-  statDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: colors.border,
-  },
-  statLabel: {
-    fontSize: 11,
+  financialLabel: {
+    fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 4,
     fontWeight: '600',
+    marginBottom: 4,
     textAlign: 'center',
   },
-  statValue: {
+  financialValue: {
+    fontSize: 17,
+    fontWeight: 'bold',
+  },
+  financialDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: colors.border,
+  },
+  balanceHighlightBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: spacing.sm,
+    paddingHorizontal: 4,
+  },
+  balanceHighlightLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  balanceHighlightValue: {
     fontSize: 16,
     fontWeight: 'bold',
   },
-  statValueDebit: {
+  balanceDanger: {
     color: colors.danger,
   },
-  statValueCredit: {
+  balanceCredit: {
     color: colors.success,
   },
-  statValuePrimary: {
-    color: colors.primary,
+  balanceZero: {
+    color: colors.textPrimary,
   },
-  statValueNeutral: {
+  textDebit: {
+    color: colors.danger,
+  },
+  textCredit: {
+    color: colors.success,
+  },
+  textNeutral: {
     color: colors.textSecondary,
   },
   buttonsRow: {

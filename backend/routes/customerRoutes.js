@@ -12,6 +12,9 @@ router.use(authMiddleware);
 // POST /api/customers - Create a new customer
 router.post('/', customerController.createCustomer);
 
+// GET /api/customers/analytics/summary - Get business-wide analytics summary
+router.get('/analytics/summary', customerController.getAnalyticsSummary);
+
 // GET /api/customers - Get all customers (supports ?search=)
 router.get('/', customerController.getCustomers);
 
