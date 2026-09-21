@@ -102,6 +102,7 @@ export const getWeeksInMonth = (yearOrMonthKey, monthNum) => {
       dateRange: `${curStart} - ${curEnd} ${monthShort}`,
       isPartial,
     });
+    curStart = curEnd + 1;
   }
 
   return weeks;

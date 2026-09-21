@@ -312,7 +312,7 @@ export default function CustomerPortalMonthDetailScreen({ route, navigation }) {
                       { color: isUdhaar ? colors.danger : colors.success },
                     ]}
                   >
-                    {isUdhaar ? '+' : '-'} Rs. {entry.amount.toLocaleString()}
+                    {isUdhaar ? '+' : '-'} Rs. {(entry.amount || 0).toLocaleString()}
                   </Text>
                   <Text style={styles.entryTypeLabel}>
                     {isUdhaar ? 'Udhaar' : 'Wasool'}
