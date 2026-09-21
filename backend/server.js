@@ -53,6 +53,10 @@ app.use('/api/customer-auth', customerAuthRoutes);
 // Customer Portal Read-Only Routes
 app.use('/api/customer-portal', customerPortalRoutes);
 
+// Super Admin Platform Oversight Routes
+const superAdminRoutes = require('./routes/superAdminRoutes');
+app.use('/api/super-admin', superAdminRoutes);
+
 // Customer Routes (Protected)
 app.use('/api/customers', customerRoutes);
 

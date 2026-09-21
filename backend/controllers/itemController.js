@@ -1,11 +1,14 @@
 // controllers/itemController.js
 // Item Master CRUD controller functions scoped to req.userId
+// Soft-delete enabled with permanent AuditLog tracking
 
 const Item = require('../models/Item');
+const AuditLog = require('../models/AuditLog');
+const User = require('../models/User');
 
 /**
  * Creates a new item in the master catalog
- * Enforces unique name per user (case-insensitive)
+ * Enforces unique name per user (case-insensitive) among active items
  * POST /api/items
  */
 const createItem = async (req, res) => {
@@ -25,9 +28,10 @@ const createItem = async (req, res) => {
 
     const trimmedName = name.trim();
 
-    // Check duplicate item name for this user (case-insensitive)
+    // Check duplicate item name for this user (case-insensitive) among non-deleted items
     const existingItem = await Item.findOne({
       userId: req.userId,
+      isDeleted: { $ne: true },
       name: { $regex: new RegExp(`^${trimmedName}$`, 'i') },
     });
 
@@ -49,12 +53,15 @@ const createItem = async (req, res) => {
 };
 
 /**
- * Returns all items belonging to req.userId, sorted alphabetically
+ * Returns all active items belonging to req.userId, sorted alphabetically
  * GET /api/items
  */
 const getItems = async (req, res) => {
   try {
-    const items = await Item.find({ userId: req.userId }).sort({ name: 1 });
+    const items = await Item.find({
+      userId: req.userId,
+      isDeleted: { $ne: true },
+    }).sort({ name: 1 });
     return res.status(200).json(items);
   } catch (error) {
     console.error('Error fetching items:', error);
@@ -63,7 +70,7 @@ const getItems = async (req, res) => {
 };
 
 /**
- * Returns a single item by id (scoped to req.userId)
+ * Returns a single active item by id (scoped to req.userId)
  * GET /api/items/:id
  */
 const getItemById = async (req, res) => {
@@ -71,6 +78,7 @@ const getItemById = async (req, res) => {
     const item = await Item.findOne({
       _id: req.params.id,
       userId: req.userId,
+      isDeleted: { $ne: true },
     });
 
     if (!item) {
@@ -86,7 +94,7 @@ const getItemById = async (req, res) => {
 
 /**
  * Updates an item's name and/or defaultRate
- * Ensures updated name doesn't conflict with another existing item for this user
+ * Ensures updated name doesn't conflict with another existing active item for this user
  * PUT /api/items/:id
  */
 const updateItem = async (req, res) => {
@@ -104,10 +112,11 @@ const updateItem = async (req, res) => {
 
     const trimmedName = name.trim();
 
-    // Check for duplicate name conflicts with any other item of this user
+    // Check for duplicate name conflicts with any other active item of this user
     const duplicate = await Item.findOne({
       userId: req.userId,
       _id: { $ne: req.params.id },
+      isDeleted: { $ne: true },
       name: { $regex: new RegExp(`^${trimmedName}$`, 'i') },
     });
 
@@ -116,7 +125,7 @@ const updateItem = async (req, res) => {
     }
 
     const item = await Item.findOneAndUpdate(
-      { _id: req.params.id, userId: req.userId },
+      { _id: req.params.id, userId: req.userId, isDeleted: { $ne: true } },
       {
         name: trimmedName,
         defaultRate: numericRate,
@@ -136,19 +145,43 @@ const updateItem = async (req, res) => {
 };
 
 /**
- * Deletes an item (scoped to req.userId)
+ * Soft-deletes an item (scoped to req.userId)
+ * Captures snapshot into AuditLog
  * DELETE /api/items/:id
  */
 const deleteItem = async (req, res) => {
   try {
-    const item = await Item.findOneAndDelete({
+    const item = await Item.findOne({
       _id: req.params.id,
       userId: req.userId,
+      isDeleted: { $ne: true },
     });
 
     if (!item) {
       return res.status(404).json({ error: 'Item not found' });
     }
+
+    const snapshot = item.toObject();
+
+    item.isDeleted = true;
+    item.deletedAt = new Date();
+    item.deletedBy = req.userId;
+    await item.save();
+
+    // Fetch user for name snapshot
+    const user = await User.findById(req.userId).select('name');
+
+    // Create AuditLog record
+    await AuditLog.create({
+      shopId: req.userId,
+      performedByUserId: req.userId,
+      performedByUserName: user?.name || 'Unknown User',
+      action: 'delete',
+      entityType: 'Item',
+      entityId: item._id,
+      entitySnapshot: snapshot,
+      timestamp: new Date(),
+    });
 
     return res.status(200).json({ message: 'Item deleted successfully' });
   } catch (error) {

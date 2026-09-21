@@ -5,6 +5,8 @@ const mongoose = require('mongoose');
 const WholesalerEntry = require('../models/WholesalerEntry');
 const Wholesaler = require('../models/Wholesaler');
 const WholesalerItem = require('../models/WholesalerItem');
+const AuditLog = require('../models/AuditLog');
+const User = require('../models/User');
 
 /**
  * Calculates net balance for a wholesaler:
@@ -14,7 +16,7 @@ const getWholesalerBalance = async (wholesalerId) => {
   const objectId = new mongoose.Types.ObjectId(wholesalerId);
 
   const result = await WholesalerEntry.aggregate([
-    { $match: { wholesalerId: objectId } },
+    { $match: { wholesalerId: objectId, isDeleted: { $ne: true } } },
     {
       $group: {
         _id: null,
@@ -53,7 +55,7 @@ const getWholesalerAdvanceBaqi = async (wholesalerId) => {
   const objectId = new mongoose.Types.ObjectId(wholesalerId);
 
   const result = await WholesalerEntry.aggregate([
-    { $match: { wholesalerId: objectId } },
+    { $match: { wholesalerId: objectId, isDeleted: { $ne: true } } },
     {
       $group: {
         _id: null,
@@ -103,7 +105,7 @@ const processAdjustmentItems = async (itemsArray, defaultRate, userId) => {
     if (pieces <= 0) continue;
 
     // Verify item in WholesalerItem catalog
-    const wholesalerItem = await WholesalerItem.findOne({ _id: rawItem.itemId, userId });
+    const wholesalerItem = await WholesalerItem.findOne({ _id: rawItem.itemId, userId, isDeleted: { $ne: true } });
     if (!wholesalerItem) {
       throw new Error(`Wholesaler item not found for ID: ${rawItem.itemId}`);
     }
@@ -166,6 +168,7 @@ const createWholesalerEntry = async (req, res) => {
     const wholesaler = await Wholesaler.findOne({
       _id: wholesalerId,
       userId: req.userId,
+      isDeleted: { $ne: true },
     });
 
     if (!wholesaler) {
@@ -193,7 +196,7 @@ const createWholesalerEntry = async (req, res) => {
       }
 
       // Verify item belongs to user / shop in wholesaler items catalog
-      const item = await WholesalerItem.findOne({ _id: itemId, userId: req.userId });
+      const item = await WholesalerItem.findOne({ _id: itemId, userId: req.userId, isDeleted: { $ne: true } });
       if (!item) {
         return res.status(404).json({ error: 'Item not found in wholesaler catalog' });
       }
@@ -323,13 +326,14 @@ const getEntriesByWholesaler = async (req, res) => {
     const wholesaler = await Wholesaler.findOne({
       _id: wholesalerId,
       userId: req.userId,
+      isDeleted: { $ne: true },
     });
 
     if (!wholesaler) {
       return res.status(404).json({ error: 'Wholesaler not found or unauthorized' });
     }
 
-    const allEntries = await WholesalerEntry.find({ wholesalerId: wholesaler._id }).sort({
+    const allEntries = await WholesalerEntry.find({ wholesalerId: wholesaler._id, isDeleted: { $ne: true } }).sort({
       entryDate: 1,
       createdAt: 1,
     });
@@ -477,7 +481,7 @@ const updateWholesalerEntry = async (req, res) => {
       entryTime,
     } = req.body;
 
-    const entry = await WholesalerEntry.findById(id);
+    const entry = await WholesalerEntry.findOne({ _id: id, isDeleted: { $ne: true } });
     if (!entry) {
       return res.status(404).json({ error: 'Entry not found' });
     }
@@ -485,6 +489,7 @@ const updateWholesalerEntry = async (req, res) => {
     const wholesaler = await Wholesaler.findOne({
       _id: entry.wholesalerId,
       userId: req.userId,
+      isDeleted: { $ne: true },
     });
 
     if (!wholesaler) {
@@ -493,7 +498,7 @@ const updateWholesalerEntry = async (req, res) => {
 
     if (entry.type === 'purchase') {
       if (itemId) {
-        const item = await WholesalerItem.findOne({ _id: itemId, userId: req.userId });
+        const item = await WholesalerItem.findOne({ _id: itemId, userId: req.userId, isDeleted: { $ne: true } });
         if (!item) {
           return res.status(404).json({ error: 'Item not found in wholesaler catalog' });
         }
@@ -598,14 +603,15 @@ const updateWholesalerEntry = async (req, res) => {
 };
 
 /**
- * Deletes a wholesaler entry
+ * Soft-deletes a wholesaler entry
+ * Captures snapshot into AuditLog
  * DELETE /api/wholesaler-entries/:id
  */
 const deleteWholesalerEntry = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const entry = await WholesalerEntry.findById(id);
+    const entry = await WholesalerEntry.findOne({ _id: id, isDeleted: { $ne: true } });
     if (!entry) {
       return res.status(404).json({ error: 'Entry not found' });
     }
@@ -613,6 +619,7 @@ const deleteWholesalerEntry = async (req, res) => {
     const wholesaler = await Wholesaler.findOne({
       _id: entry.wholesalerId,
       userId: req.userId,
+      isDeleted: { $ne: true },
     });
 
     if (!wholesaler) {
@@ -620,7 +627,27 @@ const deleteWholesalerEntry = async (req, res) => {
     }
 
     const wholesalerId = entry.wholesalerId;
-    await WholesalerEntry.findByIdAndDelete(id);
+    const snapshot = entry.toObject();
+
+    entry.isDeleted = true;
+    entry.deletedAt = new Date();
+    entry.deletedBy = req.userId;
+    await entry.save();
+
+    // Fetch user for name snapshot
+    const user = await User.findById(req.userId).select('name');
+
+    // Create AuditLog record
+    await AuditLog.create({
+      shopId: req.userId,
+      performedByUserId: req.userId,
+      performedByUserName: user?.name || 'Unknown User',
+      action: 'delete',
+      entityType: 'WholesalerEntry',
+      entityId: entry._id,
+      entitySnapshot: snapshot,
+      timestamp: new Date(),
+    });
 
     const updatedBalance = await getWholesalerBalance(wholesalerId);
     const updatedAdvanceBaqi = await getWholesalerAdvanceBaqi(wholesalerId);

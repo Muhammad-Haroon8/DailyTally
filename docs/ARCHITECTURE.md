@@ -112,29 +112,34 @@ DailyTally/
 │   ├── controllers/
 │   │   ├── authController.js      # User registration, login, profile, password
 │   │   ├── customerAuthController.js # Customer phone-only login & JWT issuance
-│   │   ├── customerController.js  # Customer CRUD and balance aggregation
+│   │   ├── customerController.js  # Customer CRUD and balance aggregation (soft-delete enabled)
 │   │   ├── customerPortalController.js # Read-only customer hisab & statement PDF
-│   │   ├── entryController.js     # Customer item & payment transactions
-│   │   ├── itemController.js      # Customer item catalog management
+│   │   ├── entryController.js     # Customer item & payment transactions (soft-delete enabled)
+│   │   ├── itemController.js      # Customer item catalog management (soft-delete enabled)
 │   │   ├── reportController.js    # Customer PDF statement compilation
-│   │   ├── wholesalerController.js# Wholesaler profiles & net calculations
-│   │   ├── wholesalerEntryController.js # Wholesaler purchase, payment, advance
-│   │   ├── wholesalerItemController.js  # Wholesaler item catalog management
+│   │   ├── superAdminAuthController.js # Super Admin login & token issuance
+│   │   ├── superAdminController.js # Super Admin read-only platform oversight & audit inspection
+│   │   ├── wholesalerController.js# Wholesaler profiles & net calculations (soft-delete enabled)
+│   │   ├── wholesalerEntryController.js # Wholesaler purchase, payment, advance (soft-delete enabled)
+│   │   ├── wholesalerItemController.js  # Wholesaler item catalog management (soft-delete enabled)
 │   │   └── wholesalerReportController.js# Wholesaler PDF statement compilation
 │   ├── fonts/
 │   │   ├── arial.ttf              # Unicode regular font for PDF generation
 │   │   └── arialbd.ttf            # Unicode bold font for PDF generation
 │   ├── middleware/
 │   │   ├── authMiddleware.js      # Staff JWT verification & tenant scoping
-│   │   └── customerAuthMiddleware.js # Customer portal JWT verification (tokenType: customer)
+│   │   ├── customerAuthMiddleware.js # Customer portal JWT verification (tokenType: customer)
+│   │   └── superAdminMiddleware.js# Super Admin JWT verification (tokenType: superadmin)
 │   ├── models/
-│   │   ├── User.js                # Shopkeeper / Account schema
-│   │   ├── Customer.js            # Customer (Gahak) profile schema
-│   │   ├── Item.js                # Customer sale item catalog schema
-│   │   ├── Entry.js               # Customer credit & payment transaction schema
-│   │   ├── Wholesaler.js          # Wholesaler (Saudagar) profile schema
-│   │   ├── WholesalerItem.js      # Wholesaler purchase item catalog schema
-│   │   └── WholesalerEntry.js     # Wholesaler purchases, payments, advances schema
+│   │   ├── User.js                # Shopkeeper / Account schema (soft-delete enabled)
+│   │   ├── Customer.js            # Customer (Gahak) profile schema (soft-delete enabled)
+│   │   ├── Item.js                # Customer sale item catalog schema (soft-delete enabled)
+│   │   ├── Entry.js               # Customer credit & payment transaction schema (soft-delete enabled)
+│   │   ├── Wholesaler.js          # Wholesaler (Saudagar) profile schema (soft-delete enabled)
+│   │   ├── WholesalerItem.js      # Wholesaler purchase item catalog schema (soft-delete enabled)
+│   │   ├── WholesalerEntry.js     # Wholesaler purchases, payments, advances schema (soft-delete enabled)
+│   │   ├── SuperAdmin.js          # Platform Super Admin account schema
+│   │   └── AuditLog.js            # Immutable audit trail with full document snapshots
 │   ├── routes/
 │   │   ├── authRoutes.js          # Staff auth endpoints
 │   │   ├── customerAuthRoutes.js  # Customer phone login endpoints
@@ -143,10 +148,14 @@ DailyTally/
 │   │   ├── entryRoutes.js         # Transaction entries endpoints
 │   │   ├── itemRoutes.js          # Item master endpoints
 │   │   ├── reportRoutes.js        # PDF report endpoints
+│   │   ├── superAdminRoutes.js    # Super Admin login & platform oversight endpoints
 │   │   ├── wholesalerEntryRoutes.js # Wholesaler transactions endpoints
 │   │   ├── wholesalerItemRoutes.js# Wholesaler item catalog endpoints
 │   │   ├── wholesalerReportRoutes.js # Wholesaler report endpoints
 │   │   └── wholesalerRoutes.js    # Wholesaler management endpoints
+│   ├── scripts/
+│   │   ├── createSuperAdmin.js    # One-time CLI script to initialize Super Admin account
+│   │   └── testSuperAdminScenario.js # Automated verification for Super Admin & audit logging
 │   └── services/
 │       └── pdfReportService.js    # Shared PDFKit vector engine with Unicode layout
 └── mobile/                        # React Native / Expo Application
@@ -286,6 +295,24 @@ The business operates on a **Thursday-to-Wednesday** trading week. To maintain a
   2. Staff Wholesaler Module: `WholesalerMonthDetailScreen.js` (weekly summary cards and edit navigation) and `WholesalerWeekDetailScreen.js` (date-range fallback).
   3. Customer Self-Service Portal: `CustomerPortalMonthDetailScreen.js` (weekly summary cards) and `CustomerPortalWeekDetailScreen.js` (date-range fallback).
 
+### 4.6. Super Admin Oversight, Soft-Delete Architecture & Triple-Token Boundary
+1. **Platform-Level Super Admin Security**:
+   - `SuperAdmin` collection is strictly isolated from shop `User` accounts.
+   - Login via `POST /api/super-admin/login` issues a specialized JWT with payload `{ superAdminId, tokenType: "superadmin" }`.
+   - Creation occurs strictly out-of-band via terminal CLI (`backend/scripts/createSuperAdmin.js`).
+2. **Triple-Token Mutual Exclusivity**:
+   - **Staff Token**: `{ userId }` -> Granted access to tenant management APIs. Rejected with HTTP 403 on Super Admin and Customer Portal routes.
+   - **Customer Portal Token**: `{ customerId, shopId, tokenType: "customer" }` -> Granted access strictly to customer read-only hisab. Rejected with HTTP 403 on staff and Super Admin routes.
+   - **Super Admin Token**: `{ superAdminId, tokenType: "superadmin" }` -> Granted cross-shop oversight. Rejected with HTTP 403 on staff routes.
+3. **Soft-Delete Pattern Across All Entities**:
+   - Deletions across `Customer`, `Item`, `Entry`, `Wholesaler`, `WholesalerItem`, `WholesalerEntry` NEVER perform physical MongoDB document deletes (`findOneAndDelete`/`findByIdAndDelete`).
+   - The document is flagged with `isDeleted: true`, `deletedAt: new Date()`, `deletedBy: req.userId`.
+   - Wholesaler deletion cascade soft-deletes associated active entries (`WholesalerEntry`).
+   - All tenant-facing endpoints, report builders, aggregations, and balance pipelines filter `{ isDeleted: { $ne: true } }` (using pipeline `$lookup` on subdocuments) to prevent data leaks.
+4. **Permanent Audit Trail (`AuditLog`)**:
+   - Every soft-delete automatically persists an immutable `AuditLog` entry containing `shopId`, `performedByUserId`, `performedByUserName`, `action: "delete"`, `entityType`, `entityId`, `timestamp`, and `entitySnapshot` (complete document state at the instant of deletion).
+   - Read-only Super Admin APIs (`/api/super-admin/audit-log` and `/api/super-admin/audit-log/:entityId`) provide instant inspection and recovery reference.
+
 ---
 
 ## 5. Data Models & Schemas
@@ -374,7 +401,29 @@ The business operates on a **Thursday-to-Wednesday** trading week. To maintain a
 | `entryDate` | Date | Required, indexed, default: `Date.now` | Date of entry |
 | `entryTime` | String | Default: `""` | Time string (HH:mm) |
 | `timestamps`| Boolean | `true` | Mongoose timestamps |
-*Indexes*: Compound index on `{ wholesalerId: 1, entryDate: 1 }`.
+*Indexes*: Compound index on `{ wholesalerId: 1, entryDate: 1 }`, `{ wholesalerId: 1, isDeleted: 1, entryDate: 1 }`.
+
+### 5.8. SuperAdmin Schema (`SuperAdmin.js`)
+| Field | Type | Modifiers | Description |
+|---|---|---|---|
+| `_id` | ObjectId | Auto | Primary key |
+| `name` | String | Required, trim | Super Admin operator name |
+| `email` | String | Required, unique, lowercase, trim | Super Admin login email |
+| `passwordHash` | String | Required | Bcrypt salted hash |
+| `createdAt` | Date | Default: `Date.now` | Provisioning timestamp |
+
+### 5.9. AuditLog Schema (`AuditLog.js`)
+| Field | Type | Modifiers | Description |
+|---|---|---|---|
+| `_id` | ObjectId | Auto | Primary key |
+| `shopId` | ObjectId | Ref: `'User'`, required, indexed | Shop where action occurred |
+| `performedByUserId` | ObjectId | Ref: `'User'`, required, indexed | User who executed the action |
+| `performedByUserName` | String | Trim, default: `""` | User name snapshot |
+| `action` | String | Enum: `['delete']`, required | Action executed |
+| `entityType` | String | Enum: `['Customer', 'Item', 'Entry', 'Wholesaler', 'WholesalerItem', 'WholesalerEntry']`, indexed | Target entity model |
+| `entityId` | ObjectId | Required, indexed | Target document ID |
+| `entitySnapshot` | Mixed | Required | Full document state at deletion |
+| `timestamp` | Date | Default: `Date.now`, indexed | Event timestamp |
 
 ---
 

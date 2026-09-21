@@ -50,10 +50,19 @@
   - `CustomerPortalWeekDetailScreen`: Week summary card with Thursday-to-Wednesday date range, Kitna Liya / Kitna Diya / Net totals, week PDF download, and paper-receipt transaction list.
 - **Strictly Non-Destructive**: Zero add, edit, or delete buttons anywhere in the customer experience.
 
+### 2.7. Super Admin Platform Oversight, Soft-Delete & Audit System (Phase 12)
+- **Separate SuperAdmin Collection & Out-of-Band Provisioning**: Dedicated `SuperAdmin` collection strictly separate from `User`. Initial account provisioned via terminal CLI `node backend/scripts/createSuperAdmin.js`.
+- **Triple-Token Security Boundary**: Enforces strict mutual exclusivity across staff (`{ userId }`), customer (`{ tokenType: "customer" }`), and super admin (`{ tokenType: "superadmin" }`) sessions with HTTP 403 barriers.
+- **Universal Soft-Delete Architecture**: Zero physical document deletions across `Customer`, `Item`, `Entry`, `Wholesaler`, `WholesalerItem`, and `WholesalerEntry`. All deletions mark `isDeleted: true`, `deletedAt`, `deletedBy: req.userId` with identical response shapes for client compatibility.
+- **Permanent Immutable Audit Log**: Captures complete document state snapshot (`entitySnapshot`) at the exact moment of deletion in `AuditLog`.
+- **Read-Only Oversight Endpoints**: Cross-shop visibility for shops overview with counts, shop-level customer/wholesaler lists (revealing deleted records), detailed entity histories, and filtered audit log inspection.
+
 ---
 
 ## 3. In Progress & Recent Fixes
 
+- **Super Admin & Soft-Delete Backend Verification**: Created automated test suite `backend/scripts/testSuperAdminScenario.js` confirming 100% compliance with soft-delete, audit snapshots, cross-shop visibility, and triple-token 403 boundaries.
+- **Express Route Ordering Optimization**: Ensured `/api/super-admin` is registered prior to generic `/api` middleware mounts in `server.js` to preserve clean route evaluation.
 - **Dynamic Navigator Routing Fix (`AppNavigator.js`)**: Fixed an issue where `initialRouteName="Home"` was hardcoded, causing a crash (`Couldn't find a screen named 'Home'`) for unauthenticated users. Configured dynamic initial routing: `initialRouteName={isAuthenticated ? 'Home' : 'Login'}`.
 - **Expo SDK 57 Dependency Alignment**: Updated `expo` to `~57.0.24`, `expo-file-system` to `~57.0.7`, `expo-secure-store` to `~57.0.4`, and `expo-sharing` to `~57.0.21` using `npx expo install --fix`.
 - **Vercel Serverless Font Bundling**: Configured root `vercel.json` with `includeFiles` targeting `backend/fonts/**` and `backend/node_modules/pdfkit/**` so PDFKit can locate TTF files in serverless AWS Lambda environments.
@@ -86,6 +95,9 @@
 | **Dual-Token Boundary (`tokenType: customer`)** | Shared user role or token payload | Customer tokens must never be capable of calling staff endpoints. Creating a distinct token payload and enforcing a hard 403 barrier in staff `authMiddleware` guarantees complete tenant protection even without passwords. |
 | **Thursday-to-Wednesday Trading Week (Everywhere)** | Monday-start or day-of-month (1-7, 8-14) weeks | Local market business cycle runs Thursday through Wednesday. Implemented via centralized `weekBoundaries.js` engine across all 6 screens (Customer staff, Wholesaler staff, Customer Portal). |
 | **Customer Portal Month + Week Structure** | Flat continuous timeline | Retained clear hierarchical browsing (Home Month Cards -> MonthDetail -> WeekDetail) with big typography, paper-receipt styling, and zero filter chips. |
+| **Separate SuperAdmin Collection vs Role on User** | Boolean `isSuperAdmin` on `User` | Complete physical separation of administrative privileges prevents privilege escalation, simplifies permission reasoning, and avoids accidental data exposure. |
+| **Soft-Deletes with Immutable Audit Snapshots** | Hard MongoDB deletion | Eliminates accidental data loss. When shopkeepers delete records, they disappear from the shop view but remain available to Super Admin with the actor and full snapshot preserved. |
+| **Triple-Token Mutual Exclusivity** | Single token with claims | Staff (`{ userId }`), Customer (`tokenType: customer`), and Super Admin (`tokenType: superadmin`) cannot call across boundaries; each middleware rejects other types with HTTP 403. |
 
 ---
 

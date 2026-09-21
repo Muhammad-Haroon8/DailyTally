@@ -142,11 +142,36 @@ Status: ✅ Complete
 
 ---
 
-## Phase 12 — Future Planned Enhancements
+## Phase 12 — Super Admin Platform Oversight, Soft-Delete & Audit Logging
+Status: ✅ Complete
+- [x] Create isolated `SuperAdmin` Mongoose model (`models/SuperAdmin.js`) with dedicated email uniqueness and bcrypt password hash.
+- [x] Implement backend `superAdminAuthController.js` (`POST /api/super-admin/login`) issuing JWT with payload `{ superAdminId, tokenType: "superadmin" }`.
+- [x] Create one-time CLI provisioning script `backend/scripts/createSuperAdmin.js` for initial Super Admin creation.
+- [x] Implement backend `superAdminMiddleware.js` enforcing `tokenType: "superadmin"` and extracting `req.superAdminId`.
+- [x] Enforce triple-token boundary in `authMiddleware.js` and `customerAuthMiddleware.js`, rejecting cross-access with HTTP 403.
+- [x] Implement immutable `AuditLog` Mongoose model (`models/AuditLog.js`) capturing full document snapshots, actors, and timestamps.
+- [x] Add soft-delete fields (`isDeleted`, `deletedAt`, `deletedBy`) across all models: `Customer`, `Item`, `Entry`, `Wholesaler`, `WholesalerItem`, `WholesalerEntry`, and `User`.
+- [x] Convert all existing delete operations to soft-deletes with AuditLog recording (`customerController.js`, `itemController.js`, `entryController.js`, `wholesalerController.js`, `wholesalerItemController.js`, `wholesalerEntryController.js`).
+- [x] Cascade soft-delete active entries upon Wholesaler deletion.
+- [x] Audit and update all shop-facing queries, aggregations, balance calculations, and PDF reports (`reportController.js`, `wholesalerReportController.js`, `customerPortalController.js`) to filter `isDeleted: { $ne: true }`.
+- [x] Implement read-only Super Admin endpoints in `superAdminController.js` and `superAdminRoutes.js`:
+  - `GET /api/super-admin/shops` (list all shops with owner details and active/deleted counts)
+  - `GET /api/super-admin/shops/:shopId/customers` (list all shop customers including deleted records with lifetime totals)
+  - `GET /api/super-admin/customers/:customerId` (cross-shop full customer entry history with deleted flags)
+  - `GET /api/super-admin/shops/:shopId/wholesalers` (list all shop wholesalers including deleted records with lifetime totals)
+  - `GET /api/super-admin/wholesalers/:wholesalerId` (cross-shop full wholesaler entry history with deleted flags)
+  - `GET /api/super-admin/audit-log` (filter audit logs by shopId, userId, entityType, date range)
+  - `GET /api/super-admin/audit-log/:entityId` (full audit history for a single entity)
+- [x] Build and run automated end-to-end test suite (`backend/scripts/testSuperAdminScenario.js`).
+
+---
+
+## Phase 13 — Future Planned Enhancements
 Status: 🔲 Not Started / Planned
 - [ ] **Direct Thermal POS Printing**: Add Bluetooth ESC/POS printer support for instant paper receipts at the shop counter.
 - [ ] **Multi-Shop Account Switching**: Allow a single shopkeeper account to manage multiple branches or independent shops.
 - [ ] **Customer WhatsApp Notification Bot**: Automated reminder messages dispatched on bill closing days.
 - [ ] **Staff / Cashier Permission Roles**: Add read-only or entry-only access roles for shop helpers.
 - [ ] **Inventory & Stock Tracking**: Track remaining live stock deduced from supplier purchases and customer sales.
+
 

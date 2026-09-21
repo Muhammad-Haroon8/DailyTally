@@ -1,9 +1,12 @@
 // controllers/wholesalerController.js
 // Wholesaler CRUD controllers scoped strictly to req.userId with balance aggregation
+// Soft-delete enabled with permanent AuditLog tracking
 
 const mongoose = require('mongoose');
 const Wholesaler = require('../models/Wholesaler');
 const WholesalerEntry = require('../models/WholesalerEntry');
+const AuditLog = require('../models/AuditLog');
+const User = require('../models/User');
 
 /**
  * Creates a new wholesaler for the logged-in user
@@ -40,14 +43,17 @@ const createWholesaler = async (req, res) => {
 };
 
 /**
- * Returns all wholesalers belonging to req.userId with calculated balance, sorted alphabetically
+ * Returns all active wholesalers belonging to req.userId with calculated balance, sorted alphabetically
  * Supports ?search= query param
  * GET /api/wholesalers
  */
 const getWholesalers = async (req, res) => {
   try {
     const { search } = req.query;
-    const matchQuery = { userId: new mongoose.Types.ObjectId(req.userId) };
+    const matchQuery = {
+      userId: new mongoose.Types.ObjectId(req.userId),
+      isDeleted: { $ne: true },
+    };
 
     if (search && search.trim()) {
       matchQuery.name = { $regex: search.trim(), $options: 'i' };
@@ -58,8 +64,15 @@ const getWholesalers = async (req, res) => {
       {
         $lookup: {
           from: 'wholesalerentries',
-          localField: '_id',
-          foreignField: 'wholesalerId',
+          let: { wId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$wholesalerId', '$$wId'] },
+                isDeleted: { $ne: true },
+              },
+            },
+          ],
           as: 'entries',
         },
       },
@@ -155,7 +168,7 @@ const getWholesalers = async (req, res) => {
 };
 
 /**
- * Returns a single wholesaler with lifetime totals
+ * Returns a single active wholesaler with lifetime totals
  * GET /api/wholesalers/:id
  */
 const getWholesalerById = async (req, res) => {
@@ -171,13 +184,21 @@ const getWholesalerById = async (req, res) => {
         $match: {
           _id: new mongoose.Types.ObjectId(id),
           userId: new mongoose.Types.ObjectId(req.userId),
+          isDeleted: { $ne: true },
         },
       },
       {
         $lookup: {
           from: 'wholesalerentries',
-          localField: '_id',
-          foreignField: 'wholesalerId',
+          let: { wId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$wholesalerId', '$$wId'] },
+                isDeleted: { $ne: true },
+              },
+            },
+          ],
           as: 'entries',
         },
       },
@@ -289,7 +310,7 @@ const updateWholesaler = async (req, res) => {
     }
 
     const wholesaler = await Wholesaler.findOneAndUpdate(
-      { _id: id, userId: req.userId },
+      { _id: id, userId: req.userId, isDeleted: { $ne: true } },
       {
         name: name.trim(),
         phone: phone !== undefined ? phone.trim() : '',
@@ -309,24 +330,79 @@ const updateWholesaler = async (req, res) => {
 };
 
 /**
- * Deletes a wholesaler and all associated purchase/payment entries
+ * Soft-deletes a wholesaler and cascade soft-deletes all associated entries
+ * Captures snapshots into AuditLog
  * DELETE /api/wholesalers/:id
  */
 const deleteWholesaler = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const wholesaler = await Wholesaler.findOneAndDelete({
+    const wholesaler = await Wholesaler.findOne({
       _id: id,
       userId: req.userId,
+      isDeleted: { $ne: true },
     });
 
     if (!wholesaler) {
       return res.status(404).json({ error: 'Wholesaler not found or unauthorized' });
     }
 
-    // Cascade delete entries
-    await WholesalerEntry.deleteMany({ wholesalerId: id });
+    const wholesalerSnapshot = wholesaler.toObject();
+    const now = new Date();
+
+    wholesaler.isDeleted = true;
+    wholesaler.deletedAt = now;
+    wholesaler.deletedBy = req.userId;
+    await wholesaler.save();
+
+    // Fetch user for name snapshot
+    const user = await User.findById(req.userId).select('name');
+
+    // Create AuditLog for wholesaler
+    await AuditLog.create({
+      shopId: req.userId,
+      performedByUserId: req.userId,
+      performedByUserName: user?.name || 'Unknown User',
+      action: 'delete',
+      entityType: 'Wholesaler',
+      entityId: wholesaler._id,
+      entitySnapshot: wholesalerSnapshot,
+      timestamp: now,
+    });
+
+    // Cascade soft-delete active entries
+    const activeEntries = await WholesalerEntry.find({
+      wholesalerId: id,
+      isDeleted: { $ne: true },
+    });
+
+    if (activeEntries.length > 0) {
+      await WholesalerEntry.updateMany(
+        { wholesalerId: id, isDeleted: { $ne: true } },
+        {
+          $set: {
+            isDeleted: true,
+            deletedAt: now,
+            deletedBy: req.userId,
+          },
+        }
+      );
+
+      // Create AuditLog records for cascade deleted entries
+      const auditEntries = activeEntries.map((e) => ({
+        shopId: req.userId,
+        performedByUserId: req.userId,
+        performedByUserName: user?.name || 'Unknown User',
+        action: 'delete',
+        entityType: 'WholesalerEntry',
+        entityId: e._id,
+        entitySnapshot: e.toObject(),
+        timestamp: now,
+      }));
+
+      await AuditLog.insertMany(auditEntries);
+    }
 
     return res.status(200).json({
       message: 'Wholesaler and all related entries deleted successfully',
@@ -338,7 +414,7 @@ const deleteWholesaler = async (req, res) => {
 };
 
 /**
- * Returns aggregated shop-wide analytics for wholesalers
+ * Returns aggregated shop-wide analytics for active non-deleted wholesalers
  * GET /api/wholesalers/analytics/summary
  */
 const getWholesalerAnalyticsSummary = async (req, res) => {
@@ -346,12 +422,19 @@ const getWholesalerAnalyticsSummary = async (req, res) => {
     const userObjectId = new mongoose.Types.ObjectId(req.userId);
 
     const result = await Wholesaler.aggregate([
-      { $match: { userId: userObjectId } },
+      { $match: { userId: userObjectId, isDeleted: { $ne: true } } },
       {
         $lookup: {
           from: 'wholesalerentries',
-          localField: '_id',
-          foreignField: 'wholesalerId',
+          let: { wId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$wholesalerId', '$$wId'] },
+                isDeleted: { $ne: true },
+              },
+            },
+          ],
           as: 'entries',
         },
       },

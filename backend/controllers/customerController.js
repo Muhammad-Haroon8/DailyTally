@@ -1,9 +1,12 @@
 // controllers/customerController.js
 // Customer CRUD controllers scoped strictly to req.userId with balance aggregation
+// Soft-delete enabled with permanent AuditLog tracking
 
 const mongoose = require('mongoose');
 const Customer = require('../models/Customer');
 const Entry = require('../models/Entry');
+const AuditLog = require('../models/AuditLog');
+const User = require('../models/User');
 
 /**
  * Creates a new customer for the logged-in user
@@ -35,26 +38,37 @@ const createCustomer = async (req, res) => {
 
 /**
  * Returns all customers belonging to req.userId with calculated balance, sorted alphabetically
+ * Only returns active non-deleted customers
  * Supports ?search= query param for case-insensitive partial match
  * GET /api/customers
  */
 const getCustomers = async (req, res) => {
   try {
     const { search } = req.query;
-    const matchQuery = { userId: new mongoose.Types.ObjectId(req.userId) };
+    const matchQuery = {
+      userId: new mongoose.Types.ObjectId(req.userId),
+      isDeleted: { $ne: true },
+    };
 
     if (search && search.trim()) {
       matchQuery.name = { $regex: search.trim(), $options: 'i' };
     }
 
-    // Aggregation pipeline to join entries and compute net balance for each customer
+    // Aggregation pipeline to join active entries and compute net balance for each customer
     const customers = await Customer.aggregate([
       { $match: matchQuery },
       {
         $lookup: {
           from: 'entries',
-          localField: '_id',
-          foreignField: 'customerId',
+          let: { custId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$customerId', '$$custId'] },
+                isDeleted: { $ne: true },
+              },
+            },
+          ],
           as: 'customerEntries',
         },
       },
@@ -125,7 +139,7 @@ const getCustomers = async (req, res) => {
 };
 
 /**
- * Returns a single customer by ID (only if belonging to req.userId) including current balance
+ * Returns a single customer by ID (only if belonging to req.userId and not deleted) including current balance
  * GET /api/customers/:id
  */
 const getCustomerById = async (req, res) => {
@@ -134,12 +148,25 @@ const getCustomerById = async (req, res) => {
     const userId = new mongoose.Types.ObjectId(req.userId);
 
     const result = await Customer.aggregate([
-      { $match: { _id: customerId, userId: userId } },
+      {
+        $match: {
+          _id: customerId,
+          userId: userId,
+          isDeleted: { $ne: true },
+        },
+      },
       {
         $lookup: {
           from: 'entries',
-          localField: '_id',
-          foreignField: 'customerId',
+          let: { custId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$customerId', '$$custId'] },
+                isDeleted: { $ne: true },
+              },
+            },
+          ],
           as: 'customerEntries',
         },
       },
@@ -211,7 +238,7 @@ const getCustomerById = async (req, res) => {
 };
 
 /**
- * Updates name and phone of a customer (only if belonging to req.userId)
+ * Updates name and phone of a customer (only if belonging to req.userId and not deleted)
  * PUT /api/customers/:id
  */
 const updateCustomer = async (req, res) => {
@@ -223,7 +250,7 @@ const updateCustomer = async (req, res) => {
     }
 
     const customer = await Customer.findOneAndUpdate(
-      { _id: req.params.id, userId: req.userId },
+      { _id: req.params.id, userId: req.userId, isDeleted: { $ne: true } },
       {
         name: name.trim(),
         phone: phone !== undefined ? phone.trim() : '',
@@ -243,19 +270,43 @@ const updateCustomer = async (req, res) => {
 };
 
 /**
- * Deletes a customer (only if belonging to req.userId)
+ * Soft-deletes a customer (only if belonging to req.userId)
+ * Captures snapshot into AuditLog
  * DELETE /api/customers/:id
  */
 const deleteCustomer = async (req, res) => {
   try {
-    const customer = await Customer.findOneAndDelete({
+    const customer = await Customer.findOne({
       _id: req.params.id,
       userId: req.userId,
+      isDeleted: { $ne: true },
     });
 
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
+
+    const snapshot = customer.toObject();
+
+    customer.isDeleted = true;
+    customer.deletedAt = new Date();
+    customer.deletedBy = req.userId;
+    await customer.save();
+
+    // Fetch user for name snapshot
+    const user = await User.findById(req.userId).select('name');
+
+    // Create AuditLog record
+    await AuditLog.create({
+      shopId: req.userId,
+      performedByUserId: req.userId,
+      performedByUserName: user?.name || 'Unknown User',
+      action: 'delete',
+      entityType: 'Customer',
+      entityId: customer._id,
+      entitySnapshot: snapshot,
+      timestamp: new Date(),
+    });
 
     return res.status(200).json({ message: 'Customer deleted successfully' });
   } catch (error) {
@@ -266,7 +317,7 @@ const deleteCustomer = async (req, res) => {
 
 /**
  * Returns aggregated shop-wide analytics: Kul Udhaar, Kul Wasool, and Kul Baqaya
- * across all customers belonging to req.userId
+ * across all active non-deleted customers belonging to req.userId
  * GET /api/customers/analytics/summary
  */
 const getAnalyticsSummary = async (req, res) => {
@@ -274,15 +325,22 @@ const getAnalyticsSummary = async (req, res) => {
     const userObjectId = new mongoose.Types.ObjectId(req.userId);
 
     const result = await Customer.aggregate([
-      // 1. Match only customers belonging to this user / shop
-      { $match: { userId: userObjectId } },
+      // 1. Match only active customers belonging to this user / shop
+      { $match: { userId: userObjectId, isDeleted: { $ne: true } } },
 
-      // 2. Lookup all entries for each of these customers
+      // 2. Lookup all active entries for each of these customers
       {
         $lookup: {
           from: 'entries',
-          localField: '_id',
-          foreignField: 'customerId',
+          let: { custId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$customerId', '$$custId'] },
+                isDeleted: { $ne: true },
+              },
+            },
+          ],
           as: 'customerEntries',
         },
       },
@@ -341,4 +399,3 @@ module.exports = {
   deleteCustomer,
   getAnalyticsSummary,
 };
-

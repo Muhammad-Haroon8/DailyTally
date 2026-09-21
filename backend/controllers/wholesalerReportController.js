@@ -16,6 +16,7 @@ const generateWholesalerReportPdf = async (req, res) => {
     const wholesaler = await Wholesaler.findOne({
       _id: wholesalerId,
       userId: req.userId,
+      isDeleted: { $ne: true },
     });
 
     if (!wholesaler) {
@@ -52,6 +53,7 @@ const generateWholesalerReportPdf = async (req, res) => {
         $match: {
           wholesalerId: wholesaler._id,
           entryDate: { $lt: startDate },
+          isDeleted: { $ne: true },
         },
       },
       {
@@ -82,6 +84,7 @@ const generateWholesalerReportPdf = async (req, res) => {
     const rangeEntries = await WholesalerEntry.find({
       wholesalerId: wholesaler._id,
       entryDate: { $gte: startDate, $lte: endDate },
+      isDeleted: { $ne: true },
     }).sort({
       entryDate: 1,
       createdAt: 1,

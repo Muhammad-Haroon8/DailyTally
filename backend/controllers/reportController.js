@@ -16,6 +16,7 @@ const generateCustomerReportPdf = async (req, res) => {
     const customer = await Customer.findOne({
       _id: customerId,
       userId: req.userId,
+      isDeleted: { $ne: true },
     });
 
     if (!customer) {
@@ -52,6 +53,7 @@ const generateCustomerReportPdf = async (req, res) => {
         $match: {
           customerId: customer._id,
           entryDate: { $lt: startDate },
+          isDeleted: { $ne: true },
         },
       },
       {
@@ -76,6 +78,7 @@ const generateCustomerReportPdf = async (req, res) => {
     const rangeEntries = await Entry.find({
       customerId: customer._id,
       entryDate: { $gte: startDate, $lte: endDate },
+      isDeleted: { $ne: true },
     }).sort({
       entryDate: 1,
       createdAt: 1,

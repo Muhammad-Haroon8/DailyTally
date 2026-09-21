@@ -5,6 +5,8 @@ const mongoose = require('mongoose');
 const Entry = require('../models/Entry');
 const Customer = require('../models/Customer');
 const Item = require('../models/Item');
+const AuditLog = require('../models/AuditLog');
+const User = require('../models/User');
 
 /**
  * Calculates net balance for a customer:
@@ -16,7 +18,7 @@ const getCustomerBalance = async (customerId) => {
   const objectId = new mongoose.Types.ObjectId(customerId);
 
   const result = await Entry.aggregate([
-    { $match: { customerId: objectId } },
+    { $match: { customerId: objectId, isDeleted: { $ne: true } } },
     {
       $group: {
         _id: null,
@@ -70,6 +72,7 @@ const createEntry = async (req, res) => {
     const customer = await Customer.findOne({
       _id: customerId,
       userId: req.userId,
+      isDeleted: { $ne: true },
     });
 
     if (!customer) {
@@ -92,7 +95,7 @@ const createEntry = async (req, res) => {
       }
 
       // Verify item exists and belongs to user
-      const item = await Item.findOne({ _id: itemId, userId: req.userId });
+      const item = await Item.findOne({ _id: itemId, userId: req.userId, isDeleted: { $ne: true } });
       if (!item) {
         return res.status(404).json({ error: 'Item not found in master catalog' });
       }
@@ -160,15 +163,16 @@ const getEntriesByCustomer = async (req, res) => {
     const customer = await Customer.findOne({
       _id: customerId,
       userId: req.userId,
+      isDeleted: { $ne: true },
     });
 
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found or unauthorized' });
     }
 
-    // Fetch all entries for this customer in chronological order (oldest first)
+    // Fetch all active entries for this customer in chronological order (oldest first)
     // to accurately compute cumulative running balances across months
-    const allEntries = await Entry.find({ customerId: customer._id }).sort({
+    const allEntries = await Entry.find({ customerId: customer._id, isDeleted: { $ne: true } }).sort({
       entryDate: 1,
       createdAt: 1,
     });
@@ -293,7 +297,7 @@ const updateEntry = async (req, res) => {
       entryTime,
     } = req.body;
 
-    const entry = await Entry.findById(id);
+    const entry = await Entry.findOne({ _id: id, isDeleted: { $ne: true } });
     if (!entry) {
       return res.status(404).json({ error: 'Entry not found' });
     }
@@ -302,6 +306,7 @@ const updateEntry = async (req, res) => {
     const customer = await Customer.findOne({
       _id: entry.customerId,
       userId: req.userId,
+      isDeleted: { $ne: true },
     });
 
     if (!customer) {
@@ -311,7 +316,7 @@ const updateEntry = async (req, res) => {
     // Update based on type
     if (entry.type === 'item') {
       if (itemId && itemId !== String(entry.itemId)) {
-        const item = await Item.findOne({ _id: itemId, userId: req.userId });
+        const item = await Item.findOne({ _id: itemId, userId: req.userId, isDeleted: { $ne: true } });
         if (!item) {
           return res.status(404).json({ error: 'Item not found in master catalog' });
         }
@@ -375,14 +380,15 @@ const updateEntry = async (req, res) => {
 };
 
 /**
- * Deletes an entry
+ * Soft-deletes an entry (scoped to customer belonging to req.userId)
+ * Captures snapshot into AuditLog
  * DELETE /api/entries/:id
  */
 const deleteEntry = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const entry = await Entry.findById(id);
+    const entry = await Entry.findOne({ _id: id, isDeleted: { $ne: true } });
     if (!entry) {
       return res.status(404).json({ error: 'Entry not found' });
     }
@@ -391,6 +397,7 @@ const deleteEntry = async (req, res) => {
     const customer = await Customer.findOne({
       _id: entry.customerId,
       userId: req.userId,
+      isDeleted: { $ne: true },
     });
 
     if (!customer) {
@@ -398,7 +405,27 @@ const deleteEntry = async (req, res) => {
     }
 
     const customerId = entry.customerId;
-    await Entry.findByIdAndDelete(id);
+    const snapshot = entry.toObject();
+
+    entry.isDeleted = true;
+    entry.deletedAt = new Date();
+    entry.deletedBy = req.userId;
+    await entry.save();
+
+    // Fetch user for name snapshot
+    const user = await User.findById(req.userId).select('name');
+
+    // Create AuditLog record
+    await AuditLog.create({
+      shopId: req.userId,
+      performedByUserId: req.userId,
+      performedByUserName: user?.name || 'Unknown User',
+      action: 'delete',
+      entityType: 'Entry',
+      entityId: entry._id,
+      entitySnapshot: snapshot,
+      timestamp: new Date(),
+    });
 
     const updatedBalance = await getCustomerBalance(customerId);
 

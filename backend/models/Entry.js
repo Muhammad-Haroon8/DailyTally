@@ -67,13 +67,28 @@ const entrySchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-// Compound index to optimize range and opening-balance queries for report generation
+// Compound indexes to optimize range and opening-balance queries
 entrySchema.index({ customerId: 1, entryDate: 1 });
+entrySchema.index({ customerId: 1, isDeleted: 1, entryDate: 1 });
 
 module.exports = mongoose.model('Entry', entrySchema);

@@ -32,10 +32,10 @@ const customerAuthMiddleware = async (req, res, next) => {
       });
     }
 
-    // Verify customer exists in database
-    const customer = await Customer.findById(decoded.customerId).populate('userId', 'name phone');
+    // Verify customer exists and is not deleted in database
+    const customer = await Customer.findOne({ _id: decoded.customerId, isDeleted: { $ne: true } }).populate('userId', 'name phone');
     if (!customer) {
-      return res.status(404).json({ error: 'Customer account not found' });
+      return res.status(404).json({ error: 'Customer account not found or deactivated' });
     }
 
     req.customerId = decoded.customerId;

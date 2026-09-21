@@ -16,7 +16,7 @@ const getCustomerBalance = async (customerId) => {
   const objectId = new mongoose.Types.ObjectId(customerId);
 
   const result = await Entry.aggregate([
-    { $match: { customerId: objectId } },
+    { $match: { customerId: objectId, isDeleted: { $ne: true } } },
     {
       $group: {
         _id: null,
@@ -47,8 +47,8 @@ const getCustomerProfileAndSummary = async (req, res) => {
   try {
     const customer = req.customer; // Pre-loaded by customerAuthMiddleware
 
-    // Compute all-time totals
-    const allEntries = await Entry.find({ customerId: customer._id });
+    // Compute all-time totals from active entries
+    const allEntries = await Entry.find({ customerId: customer._id, isDeleted: { $ne: true } });
 
     let totalUdhaar = 0;
     let totalWasool = 0;
@@ -100,8 +100,8 @@ const getCustomerPortalEntries = async (req, res) => {
     const customerId = req.customerId;
     const customer = req.customer;
 
-    // Fetch all entries in chronological order (oldest first) to compute running balances
-    const allEntries = await Entry.find({ customerId }).sort({
+    // Fetch all active entries in chronological order (oldest first) to compute running balances
+    const allEntries = await Entry.find({ customerId, isDeleted: { $ne: true } }).sort({
       entryDate: 1,
       createdAt: 1,
     });
@@ -248,7 +248,7 @@ const getCustomerPortalPdf = async (req, res) => {
 
     // Compute Opening Balance
     let openingBalance = 0;
-    const matchQuery = { customerId: customer._id };
+    const matchQuery = { customerId: customer._id, isDeleted: { $ne: true } };
 
     if (startDate) {
       const priorEntries = await Entry.aggregate([
@@ -256,6 +256,7 @@ const getCustomerPortalPdf = async (req, res) => {
           $match: {
             customerId: customer._id,
             entryDate: { $lt: startDate },
+            isDeleted: { $ne: true },
           },
         },
         {

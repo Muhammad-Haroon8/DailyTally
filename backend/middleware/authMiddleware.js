@@ -23,10 +23,10 @@ const authMiddleware = (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Reject customer tokens from accessing staff endpoints
-    if (decoded.tokenType === 'customer' || !decoded.userId) {
+    // Reject customer and superadmin tokens from accessing staff endpoints
+    if (decoded.tokenType === 'customer' || decoded.tokenType === 'superadmin' || !decoded.userId) {
       return res.status(403).json({
-        error: 'Access denied. Customer portal tokens cannot access staff endpoints.',
+        error: 'Access denied. Unauthorized token type for staff endpoints.',
       });
     }
 

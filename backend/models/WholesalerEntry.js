@@ -147,6 +147,20 @@ const wholesalerEntrySchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -154,5 +168,6 @@ const wholesalerEntrySchema = new mongoose.Schema(
 );
 
 wholesalerEntrySchema.index({ wholesalerId: 1, entryDate: 1 });
+wholesalerEntrySchema.index({ wholesalerId: 1, isDeleted: 1, entryDate: 1 });
 
 module.exports = mongoose.model('WholesalerEntry', wholesalerEntrySchema);

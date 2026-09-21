@@ -97,7 +97,7 @@ const customerLogin = async (req, res) => {
 
     // 2. If a specific customerId was provided (disambiguation response from mobile app)
     if (customerId) {
-      const customer = await Customer.findById(customerId).populate('userId', 'name phone');
+      const customer = await Customer.findOne({ _id: customerId, isDeleted: { $ne: true } }).populate('userId', 'name phone');
       if (!customer) {
         return res.status(404).json({ error: 'Ye customer record dastiyab nahi hai' });
       }
@@ -118,6 +118,7 @@ const customerLogin = async (req, res) => {
 
     const candidates = await Customer.find({
       phone: { $regex: regex },
+      isDeleted: { $ne: true },
     }).populate('userId', 'name phone');
 
     // Filter candidates by exact normalized match

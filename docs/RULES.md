@@ -42,6 +42,30 @@
   - Backend: `backend/utils/weekBoundaries.js`.
 - Never use Monday-start weeks or generic day-of-month (1-7, 8-14) chunking in any screen.
 
+### 1.6. Soft-Delete Authority Across All Models
+- **Zero Physical Deletes**: Destructive delete operations across `Customer`, `Item`, `Entry`, `Wholesaler`, `WholesalerItem`, and `WholesalerEntry` must **never** execute physical MongoDB deletions (`findOneAndDelete`, `findByIdAndDelete`, `deleteMany`).
+- **Standard Soft-Delete Mutation**: Deletion operations must always set:
+  - `isDeleted: true`
+  - `deletedAt: new Date()`
+  - `deletedBy: req.userId`
+- **Cascade Soft-Deletes**: Deleting a parent entity (such as a `Wholesaler`) must cascade soft-delete all active child entries (`WholesalerEntry`) in the same operation.
+- **Response Compatibility**: The response payload shape must remain identical to the legacy response so mobile clients continue to behave seamlessly without breaking changes.
+
+### 1.7. Permanent Audit Trail Logging
+- Every soft-delete operation across the system must persist an immutable record in `AuditLog`:
+  - `shopId`: Tenant shop owner ID.
+  - `performedByUserId`: Actor executing the deletion.
+  - `performedByUserName`: Actor's name snapshot.
+  - `action`: `'delete'`
+  - `entityType`: Exact entity model name.
+  - `entityId`: Document ID.
+  - `entitySnapshot`: Complete document state captured at the instant of deletion.
+  - `timestamp`: Mutation timestamp.
+
+### 1.8. Active Data Filtering on All Tenant & Customer Queries
+- Every shop-facing and customer-portal query, report builder, and aggregation pipeline must explicitly filter `{ isDeleted: { $ne: true } }`.
+- In Mongoose aggregations joining entries (e.g. `$lookup` from `entries` or `wholesalerentries`), always use pipeline lookups to filter `{ isDeleted: { $ne: true } }` so deleted transactions never pollute balances or metrics.
+
 ---
 
 ## 2. Technology & Coding Standards
@@ -108,6 +132,17 @@ Where should new code go?
 5. **Environment Variable Hygiene**:
    - Never commit `.env` files containing live secrets.
    - All serverless deployments on Vercel must configure `MONGODB_URI` and `JWT_SECRET` via Vercel Project Settings.
+6. **Triple-Token Mutual Exclusivity**:
+   - The platform strictly isolates three token realms:
+     - Staff session: `{ userId }`
+     - Customer session: `{ customerId, shopId, tokenType: "customer" }`
+     - Super Admin session: `{ superAdminId, tokenType: "superadmin" }`
+   - Every middleware (`authMiddleware`, `customerAuthMiddleware`, `superAdminMiddleware`) must strictly validate token type and reject tokens from other realms with HTTP 403 Forbidden.
+7. **Super Admin Out-of-Band Account Provisioning**:
+   - There are zero public registration endpoints for Super Admin accounts.
+   - Super Admin accounts must be provisioned strictly via server-side terminal execution (`node backend/scripts/createSuperAdmin.js`).
+8. **Super Admin Read-Only Guard**:
+   - In Phase 12, Super Admin endpoints are strictly read-only for oversight and recovery audit. No mutations or manual edits may be performed by Super Admin.
 
 ---
 
