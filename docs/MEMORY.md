@@ -98,6 +98,7 @@
 | **Separate SuperAdmin Collection vs Role on User** | Boolean `isSuperAdmin` on `User` | Complete physical separation of administrative privileges prevents privilege escalation, simplifies permission reasoning, and avoids accidental data exposure. |
 | **Soft-Deletes with Immutable Audit Snapshots** | Hard MongoDB deletion | Eliminates accidental data loss. When shopkeepers delete records, they disappear from the shop view but remain available to Super Admin with the actor and full snapshot preserved. |
 | **Triple-Token Mutual Exclusivity** | Single token with claims | Staff (`{ userId }`), Customer (`tokenType: customer`), and Super Admin (`tokenType: superadmin`) cannot call across boundaries; each middleware rejects other types with HTTP 403. |
+| **Super Admin Web Dashboard Stack & Animation Division** | Single monolithic UI or vanilla CSS | Built as independent Next.js 14 App Router project in `/admin-web` using strict TypeScript. Clear animation division: Framer Motion exclusively for UI, dialogs, route transitions; GSAP strictly for numerical counter interpolation on KPI metric cards. SCSS modules handle delicate table styling (soft-delete red tinting, strikethrough) and nested snapshot JSON trees. |
 
 ---
 
@@ -114,6 +115,9 @@
 #### Mobile (`mobile/.env`)
 - `API_BASE_URL`: Base URL for local testing (`http://<LOCAL_IP>:5000/api`).
 - `EXPO_PUBLIC_API_BASE_URL`: Production backend endpoint (`https://daily-tally-theta.vercel.app/api`).
+
+#### Super Admin Web (`admin-web/.env.local`)
+- `NEXT_PUBLIC_API_URL`: Backend REST API URL (`http://localhost:5000/api` locally, or `https://daily-tally-theta.vercel.app/api` in production).
 
 ### Running the Local Development Environment
 
@@ -132,6 +136,14 @@
    ```
    - Press **`a`** to open in Android Emulator.
    - Scan the terminal QR code with the **Expo Go** app on a physical device.
+
+3. **Start Super Admin Web Dashboard**:
+   ```powershell
+   cd admin-web
+   npm run dev
+   # Runs Next.js 14 dev server on http://localhost:3000
+   ```
+   - Super Admin Login: `admin@dailytally.com` / `SuperSecret123`.
 
 ---
 

@@ -1,0 +1,96 @@
+// styles/tables.module.scss
+@import 'variables';
+
+.tableContainer {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: $radius-lg;
+  border: 1px solid $border-subtle;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(8px);
+}
+
+.table {
+  width: 100%;
+  text-align: left;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.875rem;
+
+  thead {
+    background: rgba(30, 41, 59, 0.5);
+    border-bottom: 1px solid $border-subtle;
+
+    th {
+      padding: 0.875rem 1rem;
+      font-weight: 600;
+      color: $text-secondary;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+      border-bottom: 1px solid $border-subtle;
+    }
+  }
+
+  tbody {
+    tr {
+      transition: $transition-smooth;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+
+      &:hover {
+        background: rgba(30, 41, 59, 0.35);
+      }
+
+      td {
+        padding: 0.875rem 1rem;
+        color: $text-main;
+        vertical-align: middle;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      }
+    }
+  }
+}
+
+.deletedRow {
+  background: rgba(244, 63, 94, 0.06) !important;
+  border-left: 3px solid $color-danger !important;
+
+  &:hover {
+    background: rgba(244, 63, 94, 0.1) !important;
+  }
+
+  td {
+    color: #cbd5e1 !important;
+  }
+
+  .strikethroughText {
+    text-decoration: line-through;
+    color: #94a3b8;
+  }
+}
+
+.amountCredit {
+  color: $color-primary;
+  font-weight: 600;
+  font-family: $font-mono;
+}
+
+.amountDebit {
+  color: $color-danger;
+  font-weight: 600;
+  font-family: $font-mono;
+}
+
+.amountNeutral {
+  color: $text-secondary;
+  font-family: $font-mono;
+}
+
+.auditMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.75rem;
+  color: #fb7185;
+}

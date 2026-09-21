@@ -81,8 +81,19 @@ flowchart TD
 | **Environment** | `dotenv` | `^16.4.5` | Development environment variable loader |
 | **Development Tool** | `nodemon` | `^3.1.0` | Auto-restarting development server |
 
+### Super Admin Web Dashboard (`/admin-web`)
+| Category | Technology | Version | Purpose |
+|---|---|---|---|
+| **Framework** | Next.js (App Router) | `14.2.24` | React full-stack framework for platform oversight portal |
+| **Core Library** | React / React DOM | `18.3.1` | Concurrent UI rendering |
+| **Language** | TypeScript | `^5.6.2` | Strict end-to-end typing without `any` |
+| **Styling** | Tailwind CSS + Sass | `3.4.13` / `1.79.4` | Utility classes & SCSS modules for tables and snapshot trees |
+| **UI Animations** | Framer Motion | `^11.11.1` | Modal drawers, route transitions, staggered row appearances |
+| **KPI Animations** | GSAP | `^3.12.5` | Numerical count-up interpolation on KPI metric cards |
+| **Icons** | Lucide React | `^0.447.0` | Modern SVG iconography |
+
 ### Cloud & DevOps
-- **Hosting Platform**: Vercel (`@vercel/node` serverless runtime).
+- **Hosting Platform**: Vercel (`@vercel/node` for backend REST API; Next.js runtime for Super Admin web dashboard).
 - **Database**: MongoDB Atlas (Cloud database with replica sets).
 - **Build Service**: Expo EAS Build (Cloud CI/CD building standalone Android APKs).
 
@@ -234,6 +245,41 @@ DailyTally/
             ├── storageAdapter.js  # Expo FileSystem documentDirectory JSON storage
             ├── localCache.js      # Cached reads/writes for customers/items/summaries
             └── offlineQueue.js    # Persistent FIFO queue with temporary ID remapping
+└── admin-web/                     # Super Admin Web Dashboard (Next.js 14 / TypeScript)
+    ├── package.json               # Dependencies (Next 14, React 18, GSAP, Framer Motion, Sass)
+    ├── tsconfig.json              # TypeScript bundler module resolution
+    ├── tailwind.config.ts         # Dark theme color palette & typography
+    ├── vercel.json                # Vercel framework definition
+    ├── types/
+    │   └── superAdmin.ts          # Strict TypeScript interfaces matching backend responses
+    ├── styles/
+    │   ├── _variables.scss        # SCSS tokens (colors, borders, fonts)
+    │   ├── globals.scss           # Tailwind directives & global resets
+    │   ├── tables.module.scss     # Custom table styling & soft-delete visual markers
+    │   └── snapshot.module.scss   # Snapshot inspector formatted key-value tree viewer
+    ├── lib/
+    │   ├── apiClient.ts           # Typed API fetch client with Bearer auth & 401 redirect
+    │   └── formatters.ts          # Currency, date, and relative time formatters
+    ├── context/
+    │   └── AuthContext.tsx        # Super Admin session & token state in localStorage
+    ├── components/
+    │   ├── Header.tsx             # Breadcrumbs & action buttons header
+    │   ├── MetricCard.tsx         # KPI card with GSAP count-up number interpolation
+    │   ├── Sidebar.tsx            # Navigation sidebar with active highlight
+    │   ├── SkeletonTable.tsx      # Animated shimmer placeholder table
+    │   ├── SnapshotModal.tsx      # Framer Motion modal with tree view & raw JSON
+    │   └── StatusBadge.tsx        # Active vs Soft-Deleted indicator with user attribution
+    └── app/
+        ├── layout.tsx             # Root layout with AuthProvider & styles
+        ├── page.tsx               # Root redirect (/ -> /shops or /login)
+        ├── login/page.tsx         # Glassmorphism Super Admin login form
+        └── (dashboard)/
+            ├── layout.tsx         # Protected dashboard layout with Sidebar & auth guard
+            ├── shops/page.tsx     # Shops directory with GSAP KPI metrics & search
+            ├── shops/[shopId]/    # Shop detail with Customer and Wholesaler ledger tabs
+            ├── customers/[customerId]/ # Customer full ledger history & deleted flags
+            ├── wholesalers/[wholesalerId]/ # Wholesaler full ledger & shortage breakdowns
+            └── audit-log/page.tsx # Platform audit trail with multi-filter & snapshot inspection
 ```
 
 ---
@@ -476,3 +522,12 @@ The business operates on a **Thursday-to-Wednesday** trading week. To maintain a
   1. `process.env.EXPO_PUBLIC_API_BASE_URL` (if set to remote host).
   2. Local development host IP extracted from `Constants.expoConfig.hostUri`.
   3. Hardcoded fallback: `https://daily-tally-theta.vercel.app/api`.
+
+### Super Admin Web Dashboard Deployment (Vercel)
+- **Framework Preset**: Next.js (App Router)
+- **Root Directory**: `admin-web`
+- **Configured via**: `admin-web/vercel.json` (`{ "framework": "nextjs" }`)
+- **Environment Variables**:
+  - `NEXT_PUBLIC_API_URL`: Backend REST API URL (`https://daily-tally-theta.vercel.app/api`).
+- **Build Command**: `next build` (zero TypeScript errors, automatic static page pre-rendering).
+- **Output**: Optimized static assets with serverless dynamic routes (`/customers/[id]`, `/shops/[id]`, `/wholesalers/[id]`).

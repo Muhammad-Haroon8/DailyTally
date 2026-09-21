@@ -163,6 +163,17 @@ Status: ✅ Complete
   - `GET /api/super-admin/audit-log` (filter audit logs by shopId, userId, entityType, date range)
   - `GET /api/super-admin/audit-log/:entityId` (full audit history for a single entity)
 - [x] Build and run automated end-to-end test suite (`backend/scripts/testSuperAdminScenario.js`).
+- [x] **Part B: Super Admin Web Dashboard (`/admin-web`)**:
+  - [x] Built Next.js 14 (App Router, React 18) application with TypeScript throughout (`.tsx`/`.ts`) and strict interfaces (`types/superAdmin.ts`).
+  - [x] Implemented styling using Tailwind CSS + SCSS modules (`tables.module.scss`, `snapshot.module.scss`, `_variables.scss`, `globals.scss`).
+  - [x] Implemented animations: Framer Motion for modals/transitions and GSAP for numerical count-up interpolation on KPI metric cards.
+  - [x] Built Super Admin login page (`/login`) with glassmorphism UI, token persistence in `localStorage`, Bearer authorization, and 401 session auto-logout.
+  - [x] Built Shops Directory (`/shops`) with platform KPI cards (total shops, customers, preserved soft-deletions, wholesalers) and instant search.
+  - [x] Built Shop Ledgers view (`/shops/[shopId]`) with tabbed Customer & Wholesaler lists, soft-delete red tinting, and deletion attribution.
+  - [x] Built Customer Full Ledger view (`/customers/[customerId]`) with lifetime totals, soft-deleted transaction strikethrough, and audit history link.
+  - [x] Built Wholesaler Full Ledger view (`/wholesalers/[wholesalerId]`) with purchase/payment/advance metrics, extra/shortage breakdowns, and audit metadata.
+  - [x] Built Platform Audit Trail (`/audit-log`) with filtering by entity type, action, date range, entity ID, and interactive `SnapshotModal` (tree view + raw JSON with copy).
+  - [x] Validated production build (`npm run build`) with zero TypeScript errors across all routes.
 
 ---
 
