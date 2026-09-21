@@ -26,6 +26,8 @@ app.use(async (req, res, next) => {
 
 // Routes
 const authRoutes = require('./routes/authRoutes');
+const customerAuthRoutes = require('./routes/customerAuthRoutes');
+const customerPortalRoutes = require('./routes/customerPortalRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const wholesalerRoutes = require('./routes/wholesalerRoutes');
 const itemRoutes = require('./routes/itemRoutes');
@@ -42,8 +44,14 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Authentication Routes
+// Authentication Routes (Staff)
 app.use('/api/auth', authRoutes);
+
+// Customer Portal Authentication Routes (Phone-only)
+app.use('/api/customer-auth', customerAuthRoutes);
+
+// Customer Portal Read-Only Routes
+app.use('/api/customer-portal', customerPortalRoutes);
 
 // Customer Routes (Protected)
 app.use('/api/customers', customerRoutes);

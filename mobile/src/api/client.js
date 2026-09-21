@@ -47,25 +47,40 @@ const apiClient = axios.create({
   timeout: 10000,
 });
 
-// Listener for global 401 unauthorized session expiry
+// Listener for global 401 unauthorized session expiry (staff & customer)
 let onUnauthorizedCallback = null;
+let onCustomerUnauthorizedCallback = null;
 
 export const setUnauthorizedHandler = (callback) => {
   onUnauthorizedCallback = callback;
 };
 
+export const setCustomerUnauthorizedHandler = (callback) => {
+  onCustomerUnauthorizedCallback = callback;
+};
+
 /**
  * Request interceptor: attaches Bearer token from SecureStore if available
+ * Uses customerAuthToken for /customer-portal routes, and authToken for staff routes
  */
 apiClient.interceptors.request.use(
   async (config) => {
     try {
-      const token = await SecureStore.getItemAsync('authToken');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+      if (!config.headers.Authorization) {
+        if (config.url?.includes('/customer-portal')) {
+          const custToken = await SecureStore.getItemAsync('customerAuthToken');
+          if (custToken) {
+            config.headers.Authorization = `Bearer ${custToken}`;
+          }
+        } else {
+          const token = await SecureStore.getItemAsync('authToken');
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
+        }
       }
     } catch (error) {
-      console.warn('Failed to retrieve authToken for request interceptor:', error);
+      console.warn('Failed to retrieve token for request interceptor:', error);
     }
     return config;
   },
@@ -86,7 +101,10 @@ apiClient.interceptors.response.use(
     // 1. Handle 401 Unauthorized / Token Expiry
     if (error.response?.status === 401) {
       console.warn('🔒 401 Session expired or unauthorized.');
-      if (onUnauthorizedCallback) {
+      const isCustomerRequest = error.config?.url?.includes('/customer-portal');
+      if (isCustomerRequest && onCustomerUnauthorizedCallback) {
+        onCustomerUnauthorizedCallback();
+      } else if (onUnauthorizedCallback) {
         onUnauthorizedCallback();
       }
       Alert.alert(

@@ -22,6 +22,14 @@ const authMiddleware = (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Reject customer tokens from accessing staff endpoints
+    if (decoded.tokenType === 'customer' || !decoded.userId) {
+      return res.status(403).json({
+        error: 'Access denied. Customer portal tokens cannot access staff endpoints.',
+      });
+    }
+
     req.userId = decoded.userId;
     next();
   } catch (error) {

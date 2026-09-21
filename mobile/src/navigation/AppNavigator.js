@@ -29,14 +29,18 @@ import ManageWholesalerItemsScreen from '../screens/ManageWholesalerItemsScreen'
 import ProfileDropdownMenu from '../components/ProfileDropdownMenu';
 import { colors } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
+import { useCustomerAuth } from '../context/CustomerAuthContext';
+import CustomerPortalNavigator from './CustomerPortalNavigator';
+import CustomerLoginScreen from '../screens/customerPortal/CustomerLoginScreen';
 
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const { user, token, isLoading } = useAuth();
+  const { customerUser, customerToken, isCustomerLoading } = useCustomerAuth();
 
-  // Full-screen loading indicator while checking SecureStore session
-  if (isLoading) {
+  // Full-screen loading indicator while checking SecureStore sessions
+  if (isLoading || isCustomerLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -44,11 +48,18 @@ export default function AppNavigator() {
     );
   }
 
-  const isAuthenticated = Boolean(user && token);
+  const isStaffAuthenticated = Boolean(user && token);
+  const isCustomerAuthenticated = Boolean(customerUser && customerToken);
 
+  // State (c): Logged in as customer -> Activate Customer Portal Stack
+  if (isCustomerAuthenticated) {
+    return <CustomerPortalNavigator />;
+  }
+
+  // State (b): Logged in as staff OR State (a): Logged out
   return (
     <Stack.Navigator
-      initialRouteName="Home"
+      initialRouteName={isStaffAuthenticated ? 'Home' : 'Login'}
       screenOptions={{
         headerStyle: {
           backgroundColor: colors.primary,
@@ -62,7 +73,7 @@ export default function AppNavigator() {
         },
       }}
     >
-      {isAuthenticated ? (
+      {isStaffAuthenticated ? (
         <>
           <Stack.Screen
             name="Home"
@@ -223,6 +234,14 @@ export default function AppNavigator() {
             component={SignupScreen}
             options={{
               title: 'Karobar Hisab - Sign Up',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="CustomerLogin"
+            component={CustomerLoginScreen}
+            options={{
+              title: 'Gahak Khata Portal',
               headerShown: false,
             }}
           />

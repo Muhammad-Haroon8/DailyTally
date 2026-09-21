@@ -137,6 +137,34 @@ export default function LoginScreen({ navigation, route }) {
               <Text style={styles.linkText}>Sign up</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Customer Portal Entry Section */}
+          <View style={styles.customerPortalDivider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>YA (OR)</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity
+            style={styles.customerPortalCard}
+            onPress={() => {
+              setErrorMessage('');
+              navigation.navigate('CustomerLogin');
+            }}
+            disabled={isSubmitting}
+            activeOpacity={0.85}
+          >
+            <View style={styles.customerPortalIconBadge}>
+              <Text style={styles.customerPortalIcon}>📱</Text>
+            </View>
+            <View style={styles.customerPortalContent}>
+              <Text style={styles.customerPortalTitle}>Customer Hain? Apna Hisab Dekhein</Text>
+              <Text style={styles.customerPortalSubtitle}>
+                Sirf phone number se apna khata check karein (No password)
+              </Text>
+            </View>
+            <Text style={styles.customerPortalArrow}>→</Text>
+          </TouchableOpacity>
         </Card>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -159,40 +187,39 @@ const styles = StyleSheet.create({
   appTitle: {
     ...typography.h1,
     color: colors.primary,
-    textAlign: 'center',
     marginBottom: spacing.xs,
+    textAlign: 'center',
+    fontWeight: 'bold',
   },
   screenTitle: {
-    ...typography.bodySmall,
-    textAlign: 'center',
+    ...typography.body,
+    color: colors.textSecondary,
     marginBottom: spacing.xl,
+    textAlign: 'center',
   },
   errorContainer: {
     backgroundColor: colors.dangerLight,
-    borderColor: colors.danger,
-    borderWidth: 1,
+    padding: spacing.md,
     borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
     marginBottom: spacing.lg,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.danger,
   },
   errorText: {
+    ...typography.bodySmall,
     color: colors.danger,
-    fontSize: 14,
-    textAlign: 'center',
     fontWeight: '500',
   },
   inputGroup: {
     marginBottom: spacing.lg,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
+    ...typography.bodySmall,
     color: colors.textPrimary,
-    marginBottom: 6,
+    marginBottom: spacing.xs,
+    fontWeight: '500',
   },
   input: {
-    backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 8,
@@ -200,11 +227,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     color: colors.textPrimary,
+    backgroundColor: colors.cardBackground,
   },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 8,
@@ -238,5 +265,63 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.primary,
     fontWeight: 'bold',
+  },
+  // Customer Portal Entry Styles
+  customerPortalDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    paddingHorizontal: spacing.sm,
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  customerPortalCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primaryLight,
+    borderRadius: 12,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(15, 110, 86, 0.2)',
+  },
+  customerPortalIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  customerPortalIcon: {
+    fontSize: 20,
+  },
+  customerPortalContent: {
+    flex: 1,
+  },
+  customerPortalTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginBottom: 2,
+  },
+  customerPortalSubtitle: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    lineHeight: 15,
+  },
+  customerPortalArrow: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginLeft: spacing.xs,
   },
 });
