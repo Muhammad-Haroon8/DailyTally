@@ -1,0 +1,10 @@
+{
+  "workbench.editorAssociations": {
+    "docs/*.md": "vscode.markdown.preview.editor",
+    "**/docs/*.md": "vscode.markdown.preview.editor",
+    "**/docs/**/*.md": "vscode.markdown.preview.editor"
+  },
+  "markdown.preview.openMarkdownLinks": "inPreview",
+  "markdown.preview.scrollEditorWithPreview": true,
+  "markdown.preview.scrollPreviewWithEditor": true
+}
