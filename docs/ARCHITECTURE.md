@@ -272,6 +272,20 @@ DailyTally/
    - Staff `authMiddleware.js` explicitly rejects any token with `tokenType: "customer"` with HTTP 403.
    - All customer portal endpoints (`/api/customer-portal/*`) are strictly read-only and scoped to `req.customerId`.
 
+### 4.5. Thursday-to-Wednesday Week Calculation Engine
+The business operates on a **Thursday-to-Wednesday** trading week. To maintain architectural consistency across all six ledger screens, week boundaries are computed centrally:
+- **Core Engine Modules**:
+  - Frontend: [`mobile/src/utils/weekBoundaries.js`](file:///e:/DailyTally/mobile/src/utils/weekBoundaries.js)
+  - Backend: [`backend/utils/weekBoundaries.js`](file:///e:/DailyTally/backend/utils/weekBoundaries.js)
+- **Boundary Rules**:
+  - **First Week**: Runs from day 1 of the calendar month through the day before the first Thursday. If day 1 is a Thursday, Week 1 is a full Thursday-to-Wednesday 7-day block; otherwise, it is a partial week (e.g. 1 - 2 Sep 2026).
+  - **Subsequent Weeks**: Full 7-day blocks anchored to Thursday (`startDay = Thursday`, `endDay = Wednesday`).
+  - **Last Week**: Runs from the final Thursday to the last day of the month (partial if the month ends before Wednesday).
+- **Consuming Screens**:
+  1. Staff Customer Module: `MonthDetailScreen.js` (weekly summary cards) and `WeekDetailScreen.js` (date-range fallback).
+  2. Staff Wholesaler Module: `WholesalerMonthDetailScreen.js` (weekly summary cards and edit navigation) and `WholesalerWeekDetailScreen.js` (date-range fallback).
+  3. Customer Self-Service Portal: `CustomerPortalMonthDetailScreen.js` (weekly summary cards) and `CustomerPortalWeekDetailScreen.js` (date-range fallback).
+
 ---
 
 ## 5. Data Models & Schemas

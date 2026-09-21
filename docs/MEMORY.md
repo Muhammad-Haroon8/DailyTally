@@ -43,10 +43,11 @@
 ### 2.6. Customer Self-Service Portal (Read-Only)
 - **Phone-Only Authentication**: Customers log in with their registered phone number (no OTP/password required in v1.1.0). Includes multi-shop picker disambiguation if a phone number exists across multiple shops.
 - **Dedicated Dual-Token Architecture**: Customer session issues a specialized JWT with `tokenType: "customer"`, saved under `customerAuthToken` in `expo-secure-store`. Staff endpoints strictly reject customer tokens with HTTP 403 at the middleware level.
-- **Read-Only Portal Screens**:
-  - `CustomerPortalHomeScreen`: Greeting, shop name, lifetime figures (Kul Kharedari, Kul Wasool, Baqi Baqaya), all-time PDF statement download, and active month cards.
-  - `CustomerPortalMonthDetailScreen`: Opening balance, month net, closing balance, weekly summary cards, and month PDF download.
-  - `CustomerPortalWeekDetailScreen`: Week opening balance, daily transaction cards with color badges, filter chips (All/Udhaar/Wasool), and week PDF download.
+- **Non-Technical & Low-Literacy Redesign**:
+  - `CustomerLoginScreen`: Simplified to friendly receipt icon (`🧾`), large 20px numeric input (`Apna Mobile Number Likhein` with `0300 1234567` placeholder), one prominent button (`Apna Hisab Dekhein →`), warm error messages, and direct back link.
+  - `CustomerPortalHomeScreen`: Restored month-wise organization! Shows arm's-length 42px bold hero balance (`Baqi Baqaya`), plain status banner, clear secondary context (`Kitna Samaan Liya` vs `Kitne Paise Diye`), prominent all-time PDF statement button, and clean Month Cards list (most recent first, only months with data) navigating into `CustomerPortalMonthDetailScreen`.
+  - `CustomerPortalMonthDetailScreen`: Displays monthly summary card, Thursday-to-Wednesday weekly summary cards navigating to `CustomerPortalWeekDetailScreen`, and month day-wise transactions list in paper-receipt styling with individual month PDF download.
+  - `CustomerPortalWeekDetailScreen`: Week summary card with Thursday-to-Wednesday date range, Kitna Liya / Kitna Diya / Net totals, week PDF download, and paper-receipt transaction list.
 - **Strictly Non-Destructive**: Zero add, edit, or delete buttons anywhere in the customer experience.
 
 ---
@@ -83,6 +84,8 @@
 | **WhatsApp PDF Sharing via Native Share Sheet** | Automated SMS Gateway or direct WhatsApp Business API | Third-party SMS and WhatsApp Business APIs carry recurring monthly costs and per-message fees. Using `expo-sharing` to launch the device's native WhatsApp share sheet provides a free, familiar, and highly reliable workflow. |
 | **Phone-Only Customer Portal Login (No Password/OTP)** | SMS OTP or customer password setup | Customers of local meat/grocery shops frequently forget passwords and SMS gateways introduce recurring costs. Phone-only login with IP rate-limiting and strictly read-only scoped endpoints enables zero-friction hisab transparency. |
 | **Dual-Token Boundary (`tokenType: customer`)** | Shared user role or token payload | Customer tokens must never be capable of calling staff endpoints. Creating a distinct token payload and enforcing a hard 403 barrier in staff `authMiddleware` guarantees complete tenant protection even without passwords. |
+| **Thursday-to-Wednesday Trading Week (Everywhere)** | Monday-start or day-of-month (1-7, 8-14) weeks | Local market business cycle runs Thursday through Wednesday. Implemented via centralized `weekBoundaries.js` engine across all 6 screens (Customer staff, Wholesaler staff, Customer Portal). |
+| **Customer Portal Month + Week Structure** | Flat continuous timeline | Retained clear hierarchical browsing (Home Month Cards -> MonthDetail -> WeekDetail) with big typography, paper-receipt styling, and zero filter chips. |
 
 ---
 

@@ -1,6 +1,6 @@
 // src/screens/customerPortal/CustomerPortalMonthDetailScreen.js
-// Customer Self-Service Portal - Read-Only Month Detail Screen
-// Month overview, weekly cards, day-wise transaction list, and month PDF download
+// Customer Self-Service Portal - Read-Only Month Screen
+// Paper-receipt style summary, Thursday-anchored weekly cards, and day-wise entries
 
 import React, { useState, useMemo } from 'react';
 import {
@@ -15,14 +15,27 @@ import {
 import * as Sharing from 'expo-sharing';
 import Card from '../../components/Card';
 import EmptyState from '../../components/EmptyState';
-import EntryTypeFilter from '../../components/EntryTypeFilter';
-import { colors, typography, spacing, cardStyles } from '../../constants/theme';
+import { colors, spacing, cardStyles } from '../../constants/theme';
 import { downloadCustomerPortalPdf } from '../../api/customerPortalApi';
+import { getWeeksInMonth } from '../../utils/weekBoundaries';
+
+/**
+ * Formats date into friendly conversational text: e.g. "4 September 2026"
+ */
+const formatFriendlyDate = (dateString) => {
+  if (!dateString) return '';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return dateString;
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  return `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+};
 
 export default function CustomerPortalMonthDetailScreen({ route, navigation }) {
   const { monthKey, monthLabel, monthData, customerName, shopName } = route.params || {};
 
-  const [entryTypeFilter, setEntryTypeFilter] = useState('all'); // 'all' | 'item' | 'payment'
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   // Compute exact date range for this month
@@ -36,21 +49,20 @@ export default function CustomerPortalMonthDetailScreen({ route, navigation }) {
     };
   }, [monthKey]);
 
-  // Compute weeks breakdown (Week 1 to Week 5)
-  const weeklyCards = useMemo(() => {
-    if (!monthData || !monthData.entries) return [];
+  const entries = monthData?.entries || [];
 
-    const weeks = [
-      { weekNum: 1, startDay: 1, endDay: 7, label: 'Week 1', count: 0, net: 0, udhaar: 0, wasool: 0 },
-      { weekNum: 2, startDay: 8, endDay: 14, label: 'Week 2', count: 0, net: 0, udhaar: 0, wasool: 0 },
-      { weekNum: 3, startDay: 15, endDay: 21, label: 'Week 3', count: 0, net: 0, udhaar: 0, wasool: 0 },
-      { weekNum: 4, startDay: 22, endDay: 28, label: 'Week 4', count: 0, net: 0, udhaar: 0, wasool: 0 },
-      { weekNum: 5, startDay: 29, endDay: 31, label: 'Week 5', count: 0, net: 0, udhaar: 0, wasool: 0 },
-    ];
+  // Group entries by Thursday-to-Wednesday Weeks
+  const weeklySummaries = useMemo(() => {
+    if (!entries || entries.length === 0) return [];
 
-    const monthShort = monthLabel ? monthLabel.split(' ')[0].slice(0, 3) : '';
+    const baseWeeks = getWeeksInMonth(monthKey || monthData?.monthKey);
+    const weeks = baseWeeks.map((w) => ({
+      ...w,
+      net: 0,
+      count: 0,
+    }));
 
-    monthData.entries.forEach((entry) => {
+    entries.forEach((entry) => {
       const d = new Date(entry.entryDate);
       const day = d.getDate();
 
@@ -59,73 +71,15 @@ export default function CustomerPortalMonthDetailScreen({ route, navigation }) {
         week.count += 1;
         if (entry.type === 'item') {
           week.net += entry.amount;
-          week.udhaar += entry.amount;
         } else {
           week.net -= entry.amount;
-          week.wasool += entry.amount;
         }
       }
     });
 
-    return weeks
-      .filter((w) => w.count > 0)
-      .map((w) => ({
-        ...w,
-        dateRange: `${w.startDay} - ${w.endDay} ${monthShort}`,
-      }));
-  }, [monthData, monthLabel]);
-
-  // Group entries by date (newest date first)
-  const dayWiseGroups = useMemo(() => {
-    if (!monthData || !monthData.entries) return [];
-
-    const groups = {};
-
-    monthData.entries.forEach((entry) => {
-      if (entryTypeFilter !== 'all' && entry.type !== entryTypeFilter) {
-        return;
-      }
-
-      const dateObj = new Date(entry.entryDate);
-      const dateKey = dateObj.toISOString().split('T')[0];
-
-      if (!groups[dateKey]) {
-        groups[dateKey] = {
-          dateKey,
-          dateFormatted: dateObj.toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-          }),
-          items: [],
-          dayTotal: 0,
-        };
-      }
-
-      groups[dateKey].items.push(entry);
-
-      if (entry.type === 'item') {
-        groups[dateKey].dayTotal += entry.amount;
-      } else {
-        groups[dateKey].dayTotal -= entry.amount;
-      }
-    });
-
-    return Object.values(groups).sort(
-      (a, b) => new Date(b.dateKey) - new Date(a.dateKey)
-    );
-  }, [monthData, entryTypeFilter]);
-
-  const filterCounts = useMemo(() => {
-    if (!monthData || !monthData.entries) return { all: 0, item: 0, payment: 0 };
-    let item = 0;
-    let payment = 0;
-    monthData.entries.forEach((e) => {
-      if (e.type === 'item') item++;
-      else if (e.type === 'payment') payment++;
-    });
-    return { all: monthData.entries.length, item, payment };
-  }, [monthData]);
+    // Only return weeks with entries
+    return weeks.filter((w) => w.count > 0);
+  }, [entries, monthKey, monthData]);
 
   const handleDownloadMonthPdf = async () => {
     if (!monthRange) return;
@@ -157,35 +111,19 @@ export default function CustomerPortalMonthDetailScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <FlatList
-        data={dayWiseGroups}
-        keyExtractor={(item) => item.dateKey}
+        data={entries}
+        keyExtractor={(item, index) => item._id || String(index)}
         contentContainerStyle={styles.contentContainer}
         ListHeaderComponent={
           <View style={styles.headerContainer}>
             {/* Top Month Summary Card */}
             <Card style={styles.summaryCard}>
-              <View style={styles.monthTitleRow}>
-                <View>
-                  <Text style={styles.monthHeaderTitle}>{monthLabel || 'Mahana Hisab'}</Text>
-                  <Text style={styles.shopSubText}>🏪 {shopName || 'Karobar Hisab'}</Text>
-                </View>
+              <Text style={styles.monthHeaderTitle}>{monthLabel || 'Mahana Hisab'}</Text>
+              <Text style={styles.shopSubText}>
+                🏪 {shopName || 'Karobar Hisab'} • {customerName || 'Gahak'} ka hisab
+              </Text>
 
-                {/* Month PDF Button */}
-                <TouchableOpacity
-                  style={styles.pdfBadge}
-                  onPress={handleDownloadMonthPdf}
-                  disabled={isDownloadingPdf}
-                  activeOpacity={0.8}
-                >
-                  {isDownloadingPdf ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.pdfBadgeText}>📄 PDF Download</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              {/* 3 Metrics: Opening, Net, Closing */}
+              {/* 3 Metrics: Pichla Baqaya, Is Mahine Ka Net, Aakhri Baqaya */}
               <View style={styles.statsRow}>
                 <View style={styles.statBox}>
                   <Text style={styles.statBoxLabel}>Pichla Baqaya</Text>
@@ -197,11 +135,11 @@ export default function CustomerPortalMonthDetailScreen({ route, navigation }) {
                 <View style={styles.statDivider} />
 
                 <View style={styles.statBox}>
-                  <Text style={styles.statBoxLabel}>Mahine Ka Net</Text>
+                  <Text style={styles.statBoxLabel}>Is Mahine Ka Net</Text>
                   <Text
                     style={[
                       styles.statBoxValue,
-                      { color: monthData?.monthNet > 0 ? colors.accent : colors.success },
+                      { color: monthData?.monthNet > 0 ? colors.danger : colors.success },
                     ]}
                   >
                     {monthData?.monthNet > 0 ? '+' : ''}
@@ -226,31 +164,50 @@ export default function CustomerPortalMonthDetailScreen({ route, navigation }) {
                   </Text>
                 </View>
               </View>
+
+              {/* Big PDF Button */}
+              <TouchableOpacity
+                style={styles.bigPdfButton}
+                onPress={handleDownloadMonthPdf}
+                disabled={isDownloadingPdf}
+                activeOpacity={0.85}
+              >
+                {isDownloadingPdf ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Text style={styles.bigPdfIcon}>📄</Text>
+                    <Text style={styles.bigPdfText}>
+                      Is Mahine Ka PDF Download Karein
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </Card>
 
-            {/* Weekly Summary Cards Section */}
-            {weeklyCards.length > 0 ? (
-              <View style={styles.weeksSection}>
-                <Text style={styles.sectionHeading}>📅 Haftawar Hisab (Weeks Breakdown)</Text>
-                <Text style={styles.sectionHint}>
-                  Kisi bhi hafte par tap karke us hafte ki rozana transactions dekhein
+            {/* Weekly Breakdown Cards (Thursday to Wednesday) */}
+            {weeklySummaries.length > 0 ? (
+              <View style={styles.weeklySection}>
+                <Text style={styles.sectionHeading}>📅 Haftawar Hisab (Thursday se Wednesday)</Text>
+                <Text style={styles.sectionSubtext}>
+                  Kisi bhi hafte ka hisab alag se dekhne ke liye tap karein:
                 </Text>
 
-                <View style={styles.weeklyList}>
-                  {weeklyCards.map((week) => (
+                <View style={styles.weeklyCardsGrid}>
+                  {weeklySummaries.map((w) => (
                     <TouchableOpacity
-                      key={week.weekNum}
-                      activeOpacity={0.85}
-                      style={styles.weekTouchable}
+                      key={w.weekNum}
+                      style={styles.weekCardTouchable}
+                      activeOpacity={0.8}
                       onPress={() =>
                         navigation.navigate('CustomerPortalWeekDetail', {
                           monthKey,
-                          monthLabel,
-                          weekNum: week.weekNum,
-                          weekLabel: week.label,
-                          dateRange: week.dateRange,
-                          startDay: week.startDay,
-                          endDay: week.endDay,
+                          monthLabel: monthData?.monthLabel,
+                          weekLabel: w.label,
+                          dateRange: w.dateRange,
+                          weekNum: w.weekNum,
+                          startDay: w.startDay,
+                          endDay: w.endDay,
                           initialMonthData: monthData,
                           customerName,
                           shopName,
@@ -258,25 +215,33 @@ export default function CustomerPortalMonthDetailScreen({ route, navigation }) {
                       }
                     >
                       <Card style={styles.weekCard}>
-                        <View style={styles.weekTopRow}>
-                          <Text style={styles.weekTitleText}>{week.label}</Text>
-                          <Text style={styles.weekDateBadge}>{week.dateRange}</Text>
+                        <View style={styles.weekCardHeader}>
+                          <Text style={styles.weekDateRangeMain}>{w.dateRange}</Text>
+                          <View style={styles.weekBadge}>
+                            <Text style={styles.weekBadgeText}>{w.label}</Text>
+                          </View>
                         </View>
 
-                        <View style={styles.weekBottomRow}>
-                          <Text style={styles.weekCountText}>
-                            {week.count} transactions
-                          </Text>
+                        <View style={styles.weekCardBody}>
                           <Text
                             style={[
                               styles.weekNetText,
-                              { color: week.net > 0 ? colors.accent : colors.success },
+                              { color: w.net > 0 ? colors.danger : colors.success },
                             ]}
                           >
-                            {week.net > 0 ? '+' : ''}
-                            Rs. {week.net.toLocaleString()}
+                            {w.net > 0
+                              ? `+ Rs. ${w.net.toLocaleString()} liya`
+                              : w.net < 0
+                              ? `- Rs. ${Math.abs(w.net).toLocaleString()} diya`
+                              : 'Barabar'}
                           </Text>
-                          <Text style={styles.weekArrow}>→</Text>
+                          <Text style={styles.weekEntriesCount}>
+                            {w.count} {w.count === 1 ? 'cheez' : 'cheezein'}
+                          </Text>
+                        </View>
+
+                        <View style={styles.weekCardFooter}>
+                          <Text style={styles.weekCardArrowText}>Hafte Ka Hisab Kholein →</Text>
                         </View>
                       </Card>
                     </TouchableOpacity>
@@ -285,108 +250,83 @@ export default function CustomerPortalMonthDetailScreen({ route, navigation }) {
               </View>
             ) : null}
 
-            {/* Filter Chips */}
-            <View style={styles.filterSection}>
-              <Text style={styles.sectionHeading}>📋 Rozana Ki Tafseel (Daily Entries)</Text>
-              <EntryTypeFilter
-                selectedFilter={entryTypeFilter}
-                onSelectFilter={setEntryTypeFilter}
-                counts={filterCounts}
-              />
+            {/* Day-Wise Transactions Section Header */}
+            <View style={styles.entriesSectionHeader}>
+              <Text style={styles.sectionHeading}>📝 Is Mahine Ki Mukammal Tafseelat</Text>
             </View>
           </View>
         }
-        renderItem={({ item: dayGroup }) => (
-          <View style={styles.dayGroupContainer}>
-            {/* Day Header Banner */}
-            <View style={styles.dayHeader}>
-              <Text style={styles.dayDateText}>🗓️ {dayGroup.dateFormatted}</Text>
-              <Text
-                style={[
-                  styles.dayNetText,
-                  { color: dayGroup.dayTotal > 0 ? colors.accent : colors.success },
-                ]}
-              >
-                Net: {dayGroup.dayTotal > 0 ? '+' : ''}
-                Rs. {dayGroup.dayTotal.toLocaleString()}
-              </Text>
-            </View>
+        renderItem={({ item: entry }) => {
+          const isUdhaar = entry.type === 'item';
 
-            {/* Day Entries */}
-            {dayGroup.items.map((entry) => {
-              const isUdhaar = entry.type === 'item';
-              return (
-                <Card
-                  key={entry._id}
+          return (
+            <Card
+              style={[
+                styles.entryCard,
+                isUdhaar ? styles.entryCardUdhaar : styles.entryCardWasool,
+              ]}
+            >
+              <View style={styles.entryRow}>
+                {/* Transaction Icon */}
+                <View
                   style={[
-                    styles.entryCard,
-                    isUdhaar ? styles.entryCardUdhaar : styles.entryCardWasool,
+                    styles.entryIconBox,
+                    {
+                      backgroundColor: isUdhaar
+                        ? colors.accentLight
+                        : colors.successLight,
+                    },
                   ]}
                 >
-                  <View style={styles.entryRow}>
-                    <View style={styles.entryMainInfo}>
-                      <View style={styles.badgeRow}>
-                        <View
-                          style={[
-                            styles.typeBadge,
-                            {
-                              backgroundColor: isUdhaar
-                                ? colors.accentLight
-                                : colors.successLight,
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.typeBadgeText,
-                              { color: isUdhaar ? colors.accent : colors.success },
-                            ]}
-                          >
-                            {isUdhaar ? '🛒 UDHAAR (ITEM)' : '💰 WASOOL RAQAM'}
-                          </Text>
-                        </View>
+                  <Text style={styles.entryIconText}>
+                    {isUdhaar ? '📦' : '💵'}
+                  </Text>
+                </View>
 
-                        {entry.entryTime ? (
-                          <Text style={styles.timeText}>🕒 {entry.entryTime}</Text>
-                        ) : null}
-                      </View>
+                {/* Details */}
+                <View style={styles.entryDetails}>
+                  <Text style={styles.entryMainTitle}>
+                    {isUdhaar ? entry.itemName : 'Paise Jama Karwaye (Adaigi)'}
+                  </Text>
 
-                      {isUdhaar ? (
-                        <Text style={styles.itemNameText}>{entry.itemName}</Text>
-                      ) : null}
+                  {isUdhaar && entry.quantity && entry.rate ? (
+                    <Text style={styles.entrySubcalc}>
+                      {entry.quantity} x Rs. {entry.rate}
+                    </Text>
+                  ) : null}
 
-                      {isUdhaar && entry.quantity && entry.rate ? (
-                        <Text style={styles.rateCalculation}>
-                          {entry.quantity} x Rs. {entry.rate} = Rs. {entry.amount.toLocaleString()}
-                        </Text>
-                      ) : null}
+                  {entry.note ? (
+                    <Text style={styles.entryNoteText}>"{entry.note}"</Text>
+                  ) : null}
 
-                      {entry.note ? (
-                        <Text style={styles.noteText}>📝 Note: {entry.note}</Text>
-                      ) : null}
-                    </View>
+                  <Text style={styles.entryDateText}>
+                    {formatFriendlyDate(entry.entryDate)}
+                  </Text>
+                </View>
 
-                    <View style={styles.entryAmountCol}>
-                      <Text
-                        style={[
-                          styles.amountText,
-                          { color: isUdhaar ? colors.accent : colors.success },
-                        ]}
-                      >
-                        {isUdhaar ? '+' : '-'} Rs. {entry.amount.toLocaleString()}
-                      </Text>
-                    </View>
-                  </View>
-                </Card>
-              );
-            })}
-          </View>
-        )}
+                {/* Amount */}
+                <View style={styles.entryAmountCol}>
+                  <Text
+                    style={[
+                      styles.entryAmountText,
+                      { color: isUdhaar ? colors.danger : colors.success },
+                    ]}
+                  >
+                    {isUdhaar ? '+' : '-'} Rs. {entry.amount.toLocaleString()}
+                  </Text>
+                  <Text style={styles.entryTypeLabel}>
+                    {isUdhaar ? 'Udhaar' : 'Wasool'}
+                  </Text>
+                </View>
+              </View>
+            </Card>
+          );
+        }}
         ListEmptyComponent={
           <EmptyState
             icon="📄"
-            title="Is Filter Me Koi Entry Nahi Hai"
-            description="Selected filter ke mutabiq is mahine koi transaction nahi mili."
+            title="Is Mahine Koi Entry Nahi"
+            description="Is mahine koi kharedari ya payment darj nahi hui."
           />
         }
       />
@@ -408,44 +348,32 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     ...cardStyles,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  monthTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    padding: spacing.xl,
+    borderRadius: 20,
+    marginBottom: spacing.lg,
     alignItems: 'center',
-    marginBottom: spacing.md,
-    paddingBottom: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   monthHeaderTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: colors.primary,
+    textAlign: 'center',
+    marginBottom: 2,
   },
   shopSubText: {
-    fontSize: 12,
+    fontSize: 14,
     color: colors.textSecondary,
-    marginTop: 2,
-  },
-  pdfBadge: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 7,
-    borderRadius: 8,
-  },
-  pdfBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: spacing.md,
   },
   statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.xs,
+    backgroundColor: colors.background,
+    borderRadius: 14,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    width: '100%',
+    marginBottom: spacing.lg,
   },
   statBox: {
     flex: 1,
@@ -453,112 +381,128 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: 1,
-    height: 35,
     backgroundColor: colors.border,
+    height: '70%',
+    alignSelf: 'center',
   },
   statBoxLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 4,
+    marginBottom: 3,
   },
   statBoxValue: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: 'bold',
     color: colors.textPrimary,
-    fontWeight: '600',
   },
-  weeksSection: {
-    marginBottom: spacing.md,
+  bigPdfButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.lg,
+    width: '100%',
+  },
+  bigPdfIcon: {
+    fontSize: 18,
+    marginRight: spacing.sm,
+  },
+  bigPdfText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  // Weekly Breakdown Section
+  weeklySection: {
+    marginBottom: spacing.lg,
   },
   sectionHeading: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: 'bold',
     color: colors.textPrimary,
     marginBottom: 2,
   },
-  sectionHint: {
-    fontSize: 12,
+  sectionSubtext: {
+    fontSize: 13,
     color: colors.textSecondary,
     marginBottom: spacing.sm,
   },
-  weeklyList: {
-    marginTop: 4,
+  weeklyCardsGrid: {
+    gap: spacing.sm,
   },
-  weekTouchable: {
-    marginBottom: spacing.sm,
+  weekCardTouchable: {
+    marginBottom: 2,
   },
   weekCard: {
     ...cardStyles,
     padding: spacing.md,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(15, 110, 86, 0.15)',
   },
-  weekTopRow: {
+  weekCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.xs,
+    marginBottom: 6,
   },
-  weekTitleText: {
-    fontSize: 15,
+  weekDateRangeMain: {
+    fontSize: 16,
     fontWeight: 'bold',
-    color: colors.textPrimary,
+    color: colors.primary,
   },
-  weekDateBadge: {
+  weekBadge: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  weekBadgeText: {
     fontSize: 12,
-    color: colors.textSecondary,
-    backgroundColor: colors.background,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: 4,
+    fontWeight: 'bold',
+    color: colors.primary,
   },
-  weekBottomRow: {
+  weekCardBody: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  weekCountText: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    alignItems: 'baseline',
+    marginBottom: 6,
   },
   weekNetText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: 'bold',
   },
-  weekArrow: {
-    fontSize: 16,
+  weekEntriesCount: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  weekCardFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#F1F0EC',
+    paddingTop: 6,
+    alignItems: 'flex-end',
+  },
+  weekCardArrowText: {
+    fontSize: 12,
     color: colors.primary,
     fontWeight: 'bold',
   },
-  filterSection: {
+  // Entries Section
+  entriesSectionHeader: {
+    marginTop: spacing.xs,
     marginBottom: spacing.sm,
-  },
-  dayGroupContainer: {
-    marginBottom: spacing.md,
-  },
-  dayHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    marginBottom: 6,
-  },
-  dayDateText: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  dayNetText: {
-    fontSize: 12,
-    fontWeight: 'bold',
   },
   entryCard: {
     ...cardStyles,
     padding: spacing.md,
-    marginBottom: spacing.xs + 2,
+    borderRadius: 14,
+    marginBottom: spacing.sm,
   },
   entryCardUdhaar: {
     borderLeftWidth: 4,
-    borderLeftColor: colors.accent,
+    borderLeftColor: colors.danger,
   },
   entryCardWasool: {
     borderLeftWidth: 4,
@@ -566,54 +510,57 @@ const styles = StyleSheet.create({
   },
   entryRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  entryMainInfo: {
+  entryIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  entryIconText: {
+    fontSize: 22,
+  },
+  entryDetails: {
     flex: 1,
     paddingRight: spacing.sm,
   },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  typeBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginRight: spacing.sm,
-  },
-  typeBadgeText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  timeText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  itemNameText: {
-    fontSize: 15,
+  entryMainTitle: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: colors.textPrimary,
     marginBottom: 2,
   },
-  rateCalculation: {
-    fontSize: 12,
+  entrySubcalc: {
+    fontSize: 13,
     color: colors.textSecondary,
     marginBottom: 2,
   },
-  noteText: {
+  entryNoteText: {
     fontSize: 12,
     color: colors.textSecondary,
     fontStyle: 'italic',
+    marginBottom: 2,
+  },
+  entryDateText: {
+    fontSize: 12,
+    color: '#8C8A84',
+    fontWeight: '500',
     marginTop: 2,
   },
   entryAmountCol: {
     alignItems: 'flex-end',
   },
-  amountText: {
-    fontSize: 16,
+  entryAmountText: {
+    fontSize: 17,
     fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  entryTypeLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
 });

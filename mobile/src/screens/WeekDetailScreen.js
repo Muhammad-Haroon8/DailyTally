@@ -25,6 +25,7 @@ import EntryTypeFilter from '../components/EntryTypeFilter';
 import { colors, typography, spacing } from '../constants/theme';
 import { getEntriesByCustomer, deleteEntry } from '../api/entryApi';
 import { getCachedCustomerDetail } from '../storage/localCache';
+import { getWeekFallback } from '../utils/weekBoundaries';
 
 export default function WeekDetailScreen({ route, navigation }) {
   const {
@@ -40,20 +41,13 @@ export default function WeekDetailScreen({ route, navigation }) {
     initialMonthData,
   } = route.params || {};
 
-  // Defensive week boundaries fallback if startDay/endDay were somehow not passed
+  // Defensive week boundaries fallback using shared Thursday-anchored utility
   const { startDay, endDay } = useMemo(() => {
     if (paramStartDay && paramEndDay) {
       return { startDay: Number(paramStartDay), endDay: Number(paramEndDay) };
     }
-    const defaultWeeks = {
-      1: { startDay: 1, endDay: 7 },
-      2: { startDay: 8, endDay: 14 },
-      3: { startDay: 15, endDay: 21 },
-      4: { startDay: 22, endDay: 28 },
-      5: { startDay: 29, endDay: 31 },
-    };
-    return defaultWeeks[weekNum] || { startDay: 1, endDay: 31 };
-  }, [paramStartDay, paramEndDay, weekNum]);
+    return getWeekFallback(monthKey, weekNum);
+  }, [paramStartDay, paramEndDay, monthKey, weekNum]);
 
   // Initial calculation from initialMonthData if provided
   const initialEntries = useMemo(() => {

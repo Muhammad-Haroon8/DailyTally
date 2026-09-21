@@ -27,6 +27,7 @@ import EntryTypeFilter from '../components/EntryTypeFilter';
 import { colors, typography, spacing } from '../constants/theme';
 import { getEntriesByCustomer, deleteEntry } from '../api/entryApi';
 import { getCachedCustomerDetail } from '../storage/localCache';
+import { getWeeksInMonth } from '../utils/weekBoundaries';
 
 export default function MonthDetailScreen({ route, navigation }) {
   const { customerId, customerName, monthKey, initialMonthData } = route.params || {};
@@ -105,20 +106,16 @@ export default function MonthDetailScreen({ route, navigation }) {
     }
   }, [monthData?.monthLabel, navigation]);
 
-  // 1. Group entries by Calendar Weeks (Week 1: 1-7, Week 2: 8-14, Week 3: 15-21, Week 4: 22-28, Week 5: 29-end)
+  // 1. Group entries by Thursday-to-Wednesday Weeks
   const weeklySummaries = useMemo(() => {
     if (!monthData || !monthData.entries || monthData.entries.length === 0) return [];
 
-    const weeks = [
-      { weekNum: 1, startDay: 1, endDay: 7, label: 'Week 1', net: 0, count: 0 },
-      { weekNum: 2, startDay: 8, endDay: 14, label: 'Week 2', net: 0, count: 0 },
-      { weekNum: 3, startDay: 15, endDay: 21, label: 'Week 3', net: 0, count: 0 },
-      { weekNum: 4, startDay: 22, endDay: 28, label: 'Week 4', net: 0, count: 0 },
-      { weekNum: 5, startDay: 29, endDay: 31, label: 'Week 5', net: 0, count: 0 },
-    ];
-
-    // Short month name (e.g. "Sep")
-    const monthShort = monthData.monthLabel ? monthData.monthLabel.split(' ')[0].slice(0, 3) : '';
+    const baseWeeks = getWeeksInMonth(monthKey || monthData.monthKey);
+    const weeks = baseWeeks.map((w) => ({
+      ...w,
+      net: 0,
+      count: 0,
+    }));
 
     monthData.entries.forEach((entry) => {
       const d = new Date(entry.entryDate);
@@ -136,13 +133,8 @@ export default function MonthDetailScreen({ route, navigation }) {
     });
 
     // Skip weeks with zero activity
-    return weeks
-      .filter((w) => w.count > 0)
-      .map((w) => ({
-        ...w,
-        dateRange: `${w.startDay} - ${w.endDay} ${monthShort}`,
-      }));
-  }, [monthData]);
+    return weeks.filter((w) => w.count > 0);
+  }, [monthData, monthKey]);
 
   // Filter counts
   const filterCounts = useMemo(() => {

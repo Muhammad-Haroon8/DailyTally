@@ -173,3 +173,31 @@ Daily Tally uses standardized native UTF-8 emojis rather than heavy vector icon 
   This guarantees that action buttons and footers are never obscured by Android 3-button navigation bars or iOS home indicator bars.
 - **Flexible Keyboard Avoiding**: Form screens use `KeyboardAvoidingView` or `ScrollView` with `keyboardShouldPersistTaps="handled"` so inputs remain accessible when the virtual keyboard is open.
 - **Orientation Lock**: Fixed to `portrait` in `app.json` to prevent layout breaks during rapid one-handed shop usage.
+
+---
+
+## 8. Customer Portal Design Variant (Non-Technical Audience)
+
+The **Customer Self-Service Portal** (`mobile/src/screens/customerPortal/`) implements a distinct design variant specifically crafted for non-technical retail customers, including those with limited literacy or low app proficiency:
+
+### Key Design Pillars
+1. **Paper Receipt / Passbook Aesthetic**:
+   - Instead of looking like a dense banking or accounting app, the UI feels like receiving a friendly paper receipt or physical passbook (*Khatavahi*).
+   - Generous 20px card border radii, clean dividing lines, soft shadows, and prominent transaction icons (`📦` for Udhaar items taken, `💵` for Wasool cash paid).
+2. **Arm's-Length Dominant Typography**:
+   - **Hero Balance**: Displayed at **42px bold**, unmissable and readable from arm's length.
+   - Distinct conversational status pill directly beneath the hero number (e.g. `⚠️ Yeh raqam aap ne dukaan par ada karni hai` in red, or `✅ Shukriya! Aapka koi baqaya nahi hai` in green).
+   - Supporting totals are explicitly labeled with natural questions: `"Kitna Samaan Liya"` and `"Kitne Paise Diye"`.
+3. **Conversational, Warm Roman Urdu**:
+   - Technical terms like *"Financial Overview"*, *"Entries"*, *"Debit/Credit"*, or *"Record"* are replaced with friendly phrases: *"Aapka Kul Baqi Baqaya"*, *"Aapke Lena Dena Ki Tafseel"*, and *"Bahar Niklein 🚪"*.
+4. **De-Cluttered Information Architecture**:
+   - **Removed Filter Chips**: Customers do not need `Sab / Udhaar / Wasool` toggle chips; all entries are visible in straightforward chronological order.
+   - **Removed Exact Timestamps**: Seconds and minutes are omitted from customer rows to prevent visual noise (only friendly dates like *"4 September 2026"* are shown).
+5. **Month & Week Structure (Restored with Paper-Receipt Styling)**:
+   - Customers navigate hierarchically from `CustomerPortalHomeScreen` (Month Cards list) into `CustomerPortalMonthDetailScreen` (weekly cards & day-wise transactions), and into `CustomerPortalWeekDetailScreen` (week transactions).
+   - All screens adhere strictly to the friendly, non-technical paper-receipt aesthetic with large text, prominent icons, color-coded amounts, and no filter chips.
+6. **Thursday-to-Wednesday Week Grouping**:
+   - All haftawar (weekly) breakdowns follow the business's Thursday-to-Wednesday week alignment (`mobile/src/utils/weekBoundaries.js`).
+7. **Large, High-Affordance Action Buttons**:
+   - Large full-width buttons with both icons and explicit labels (e.g., `📄 Apna Hisab PDF Mein Download Karein`), eliminating ambiguous small icon-only buttons.
+

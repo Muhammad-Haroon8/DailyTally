@@ -27,6 +27,7 @@ import { getCachedWholesalerDetail } from '../storage/localCache';
 import EntryTypeFilter from '../components/EntryTypeFilter';
 import * as Sharing from 'expo-sharing';
 import { downloadWholesalerReportPdf } from '../api/wholesalerReportApi';
+import { getWeeksInMonth, findWeekForDay } from '../utils/weekBoundaries';
 
 export default function WholesalerMonthDetailScreen({ route, navigation }) {
   const { wholesalerId, wholesalerName, monthKey, initialMonthData } = route.params || {};
@@ -88,19 +89,16 @@ export default function WholesalerMonthDetailScreen({ route, navigation }) {
     }
   }, [monthData?.monthLabel, navigation]);
 
-  // Weekly summaries within this month
+  // Weekly summaries within this month (Thursday-to-Wednesday weeks)
   const weeklySummaries = useMemo(() => {
     if (!monthData || !monthData.entries || monthData.entries.length === 0) return [];
 
-    const weeks = [
-      { weekNum: 1, startDay: 1, endDay: 7, label: 'Week 1', net: 0, count: 0 },
-      { weekNum: 2, startDay: 8, endDay: 14, label: 'Week 2', net: 0, count: 0 },
-      { weekNum: 3, startDay: 15, endDay: 21, label: 'Week 3', net: 0, count: 0 },
-      { weekNum: 4, startDay: 22, endDay: 28, label: 'Week 4', net: 0, count: 0 },
-      { weekNum: 5, startDay: 29, endDay: 31, label: 'Week 5', net: 0, count: 0 },
-    ];
-
-    const monthShort = monthData.monthLabel ? monthData.monthLabel.split(' ')[0].slice(0, 3) : '';
+    const baseWeeks = getWeeksInMonth(monthKey || monthData.monthKey);
+    const weeks = baseWeeks.map((w) => ({
+      ...w,
+      net: 0,
+      count: 0,
+    }));
 
     monthData.entries.forEach((entry) => {
       const d = new Date(entry.entryDate);
@@ -117,13 +115,8 @@ export default function WholesalerMonthDetailScreen({ route, navigation }) {
       }
     });
 
-    return weeks
-      .filter((w) => w.count > 0)
-      .map((w) => ({
-        ...w,
-        dateRange: `${w.startDay} - ${w.endDay} ${monthShort}`,
-      }));
-  }, [monthData]);
+    return weeks.filter((w) => w.count > 0);
+  }, [monthData, monthKey]);
 
   const filterCounts = useMemo(() => {
     if (!monthData || !monthData.entries) return { all: 0, item: 0, payment: 0, advance: 0, settlement: 0 };
@@ -230,22 +223,15 @@ export default function WholesalerMonthDetailScreen({ route, navigation }) {
             } else if (entry.type === 'advanceSettlement') {
               const entryDateObj = new Date(entry.entryDate);
               const day = entryDateObj.getDate();
-              const weeks = [
-                { weekNum: 1, startDay: 1, endDay: 7, label: 'Week 1' },
-                { weekNum: 2, startDay: 8, endDay: 14, label: 'Week 2' },
-                { weekNum: 3, startDay: 15, endDay: 21, label: 'Week 3' },
-                { weekNum: 4, startDay: 22, endDay: 28, label: 'Week 4' },
-                { weekNum: 5, startDay: 29, endDay: 31, label: 'Week 5' },
-              ];
-              const targetWeek = weeks.find((w) => day >= w.startDay && day <= w.endDay) || weeks[0];
-              const monthShort = monthData?.monthLabel ? monthData.monthLabel.split(' ')[0].slice(0, 3) : '';
+              const weeks = getWeeksInMonth(monthKey || monthData?.monthKey);
+              const targetWeek = findWeekForDay(weeks, day) || weeks[0];
               navigation.navigate('WholesalerWeekDetail', {
                 wholesalerId,
                 wholesalerName,
                 monthKey,
                 monthLabel: monthData?.monthLabel,
                 weekLabel: targetWeek.label,
-                dateRange: `${targetWeek.startDay} - ${targetWeek.endDay} ${monthShort}`,
+                dateRange: targetWeek.dateRange,
                 weekNum: targetWeek.weekNum,
                 startDay: targetWeek.startDay,
                 endDay: targetWeek.endDay,

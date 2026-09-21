@@ -1,6 +1,6 @@
 // src/screens/customerPortal/CustomerPortalWeekDetailScreen.js
-// Customer Self-Service Portal - Read-Only Week Detail Screen
-// Weekly summary totals, daily entries list, and week PDF download
+// Customer Self-Service Portal - Read-Only Week Screen
+// Thursday-to-Wednesday week totals, paper-receipt daily entries, and week PDF download
 
 import React, { useState, useMemo } from 'react';
 import {
@@ -15,9 +15,23 @@ import {
 import * as Sharing from 'expo-sharing';
 import Card from '../../components/Card';
 import EmptyState from '../../components/EmptyState';
-import EntryTypeFilter from '../../components/EntryTypeFilter';
-import { colors, typography, spacing, cardStyles } from '../../constants/theme';
+import { colors, spacing, cardStyles } from '../../constants/theme';
 import { downloadCustomerPortalPdf } from '../../api/customerPortalApi';
+import { getWeekFallback } from '../../utils/weekBoundaries';
+
+/**
+ * Formats date into friendly conversational text: e.g. "4 September 2026"
+ */
+const formatFriendlyDate = (dateString) => {
+  if (!dateString) return '';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return dateString;
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  return `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+};
 
 export default function CustomerPortalWeekDetailScreen({ route }) {
   const {
@@ -26,15 +40,22 @@ export default function CustomerPortalWeekDetailScreen({ route }) {
     weekNum,
     weekLabel,
     dateRange,
-    startDay,
-    endDay,
+    startDay: paramStartDay,
+    endDay: paramEndDay,
     initialMonthData,
     customerName,
     shopName,
   } = route.params || {};
 
-  const [entryTypeFilter, setEntryTypeFilter] = useState('all'); // 'all' | 'item' | 'payment'
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
+  // Defensive week boundaries fallback using shared Thursday-anchored utility
+  const { startDay, endDay } = useMemo(() => {
+    if (paramStartDay && paramEndDay) {
+      return { startDay: Number(paramStartDay), endDay: Number(paramEndDay) };
+    }
+    return getWeekFallback(monthKey, weekNum);
+  }, [paramStartDay, paramEndDay, monthKey, weekNum]);
 
   // Compute exact date range for this week
   const weekDateRange = useMemo(() => {
@@ -76,23 +97,6 @@ export default function CustomerPortalWeekDetailScreen({ route }) {
     return { udhaar, wasool, net };
   }, [weekEntries]);
 
-  // Filter counts
-  const filterCounts = useMemo(() => {
-    let item = 0;
-    let payment = 0;
-    weekEntries.forEach((e) => {
-      if (e.type === 'item') item++;
-      else if (e.type === 'payment') payment++;
-    });
-    return { all: weekEntries.length, item, payment };
-  }, [weekEntries]);
-
-  // Filtered entries
-  const filteredEntries = useMemo(() => {
-    if (entryTypeFilter === 'all') return weekEntries;
-    return weekEntries.filter((e) => e.type === entryTypeFilter);
-  }, [weekEntries, entryTypeFilter]);
-
   const handleDownloadWeekPdf = async () => {
     if (!weekDateRange) return;
     try {
@@ -107,7 +111,7 @@ export default function CustomerPortalWeekDetailScreen({ route }) {
       if (isAvailable) {
         await Sharing.shareAsync(fileUri, {
           mimeType: 'application/pdf',
-          dialogTitle: `${weekLabel} Statement`,
+          dialogTitle: `${weekLabel || 'Hafte Ka Hisab'} Statement`,
           UTI: 'com.adobe.pdf',
         });
       } else {
@@ -123,54 +127,38 @@ export default function CustomerPortalWeekDetailScreen({ route }) {
   return (
     <View style={styles.container}>
       <FlatList
-        data={filteredEntries}
-        keyExtractor={(item) => item._id}
+        data={weekEntries}
+        keyExtractor={(item, index) => item._id || String(index)}
         contentContainerStyle={styles.contentContainer}
         ListHeaderComponent={
           <View style={styles.headerContainer}>
             {/* Top Week Summary Card */}
             <Card style={styles.summaryCard}>
-              <View style={styles.weekTitleRow}>
-                <View>
-                  <Text style={styles.weekHeaderTitle}>
-                    {weekLabel || `Week ${weekNum}`} ({dateRange})
-                  </Text>
-                  <Text style={styles.shopSubText}>
-                    {monthLabel} • 🏪 {shopName || 'Karobar Hisab'}
-                  </Text>
-                </View>
+              <Text style={styles.weekHeaderTitle}>
+                {dateRange || `${startDay} - ${endDay}`} ({weekLabel || `Week ${weekNum}`})
+              </Text>
+              <Text style={styles.shopSubText}>
+                {monthLabel} • 🏪 {shopName || 'Karobar Hisab'} • {customerName || 'Gahak'}
+              </Text>
 
-                {/* Week PDF Button */}
-                <TouchableOpacity
-                  style={styles.pdfBadge}
-                  onPress={handleDownloadWeekPdf}
-                  disabled={isDownloadingPdf}
-                  activeOpacity={0.8}
-                >
-                  {isDownloadingPdf ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.pdfBadgeText}>📄 PDF</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              {/* 3 Metrics: Udhaar, Wasool, Net */}
+              {/* 3 Metrics: Kitna Liya, Kitna Diya, Hafte Ka Net */}
               <View style={styles.statsRow}>
                 <View style={styles.statBox}>
-                  <Text style={styles.statBoxLabel}>Is Hafte Ka Udhaar</Text>
+                  <Text style={styles.statBoxLabel}>Kitna Liya</Text>
                   <Text style={[styles.statBoxValue, { color: colors.accent }]}>
                     Rs. {weekTotals.udhaar.toLocaleString()}
                   </Text>
+                  <Text style={styles.statBoxHint}>(Udhaar)</Text>
                 </View>
 
                 <View style={styles.statDivider} />
 
                 <View style={styles.statBox}>
-                  <Text style={styles.statBoxLabel}>Is Hafte Wasool</Text>
+                  <Text style={styles.statBoxLabel}>Kitna Diya</Text>
                   <Text style={[styles.statBoxValue, { color: colors.success }]}>
                     Rs. {weekTotals.wasool.toLocaleString()}
                   </Text>
+                  <Text style={styles.statBoxHint}>(Wasool)</Text>
                 </View>
 
                 <View style={styles.statDivider} />
@@ -189,29 +177,39 @@ export default function CustomerPortalWeekDetailScreen({ route }) {
                     {weekTotals.net > 0 ? '+' : ''}
                     Rs. {weekTotals.net.toLocaleString()}
                   </Text>
+                  <Text style={styles.statBoxHint}>
+                    {weekTotals.net > 0 ? '(Baqaya)' : '(Adaigi)'}
+                  </Text>
                 </View>
               </View>
+
+              {/* Big PDF Button */}
+              <TouchableOpacity
+                style={styles.bigPdfButton}
+                onPress={handleDownloadWeekPdf}
+                disabled={isDownloadingPdf}
+                activeOpacity={0.85}
+              >
+                {isDownloadingPdf ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Text style={styles.bigPdfIcon}>📄</Text>
+                    <Text style={styles.bigPdfText}>
+                      Is Hafte Ka PDF Download Karein
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </Card>
 
-            {/* Filter Section */}
-            <View style={styles.filterSection}>
-              <Text style={styles.sectionHeading}>📋 Is Hafte Ki Transactions</Text>
-              <EntryTypeFilter
-                selectedFilter={entryTypeFilter}
-                onSelectFilter={setEntryTypeFilter}
-                counts={filterCounts}
-              />
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionHeading}>📝 Is Hafte Ki Transactions</Text>
             </View>
           </View>
         }
         renderItem={({ item: entry }) => {
           const isUdhaar = entry.type === 'item';
-          const d = new Date(entry.entryDate);
-          const dateFormatted = d.toLocaleDateString('en-GB', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-          });
 
           return (
             <Card
@@ -221,59 +219,55 @@ export default function CustomerPortalWeekDetailScreen({ route }) {
               ]}
             >
               <View style={styles.entryRow}>
-                <View style={styles.entryMainInfo}>
-                  <View style={styles.badgeRow}>
-                    <View
-                      style={[
-                        styles.typeBadge,
-                        {
-                          backgroundColor: isUdhaar
-                            ? colors.accentLight
-                            : colors.successLight,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.typeBadgeText,
-                          { color: isUdhaar ? colors.accent : colors.success },
-                        ]}
-                      >
-                        {isUdhaar ? '🛒 UDHAAR' : '💰 WASOOL'}
-                      </Text>
-                    </View>
+                {/* Transaction Icon */}
+                <View
+                  style={[
+                    styles.entryIconBox,
+                    {
+                      backgroundColor: isUdhaar
+                        ? colors.accentLight
+                        : colors.successLight,
+                    },
+                  ]}
+                >
+                  <Text style={styles.entryIconText}>
+                    {isUdhaar ? '📦' : '💵'}
+                  </Text>
+                </View>
 
-                    <Text style={styles.dateText}>🗓️ {dateFormatted}</Text>
-                    {entry.entryTime ? (
-                      <Text style={styles.timeText}> • 🕒 {entry.entryTime}</Text>
-                    ) : null}
-                  </View>
-
-                  {isUdhaar ? (
-                    <Text style={styles.itemNameText}>{entry.itemName}</Text>
-                  ) : (
-                    <Text style={styles.paymentText}>Cash Payment Wasool</Text>
-                  )}
+                {/* Details */}
+                <View style={styles.entryDetails}>
+                  <Text style={styles.entryMainTitle}>
+                    {isUdhaar ? entry.itemName : 'Paise Jama Karwaye (Adaigi)'}
+                  </Text>
 
                   {isUdhaar && entry.quantity && entry.rate ? (
-                    <Text style={styles.rateCalculation}>
-                      {entry.quantity} x Rs. {entry.rate} = Rs. {entry.amount.toLocaleString()}
+                    <Text style={styles.entrySubcalc}>
+                      {entry.quantity} x Rs. {entry.rate}
                     </Text>
                   ) : null}
 
                   {entry.note ? (
-                    <Text style={styles.noteText}>📝 Note: {entry.note}</Text>
+                    <Text style={styles.entryNoteText}>"{entry.note}"</Text>
                   ) : null}
+
+                  <Text style={styles.entryDateText}>
+                    {formatFriendlyDate(entry.entryDate)}
+                  </Text>
                 </View>
 
+                {/* Amount */}
                 <View style={styles.entryAmountCol}>
                   <Text
                     style={[
-                      styles.amountText,
-                      { color: isUdhaar ? colors.accent : colors.success },
+                      styles.entryAmountText,
+                      { color: isUdhaar ? colors.danger : colors.success },
                     ]}
                   >
                     {isUdhaar ? '+' : '-'} Rs. {entry.amount.toLocaleString()}
+                  </Text>
+                  <Text style={styles.entryTypeLabel}>
+                    {isUdhaar ? 'Udhaar' : 'Wasool'}
                   </Text>
                 </View>
               </View>
@@ -283,8 +277,8 @@ export default function CustomerPortalWeekDetailScreen({ route }) {
         ListEmptyComponent={
           <EmptyState
             icon="📄"
-            title="Is Filter Me Koi Entry Nahi"
-            description="Is hafte ke andar filter ke mutabiq koi transaction nahi mili."
+            title="Is Hafte Koi Entry Nahi"
+            description="Is hafte koi kharedari ya payment darj nahi hui."
           />
         }
       />
@@ -306,44 +300,32 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     ...cardStyles,
-    padding: spacing.lg,
+    padding: spacing.xl,
+    borderRadius: 20,
     marginBottom: spacing.md,
-  },
-  weekTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.md,
-    paddingBottom: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   weekHeaderTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: 'bold',
     color: colors.primary,
+    textAlign: 'center',
+    marginBottom: 2,
   },
   shopSubText: {
-    fontSize: 12,
+    fontSize: 14,
     color: colors.textSecondary,
-    marginTop: 2,
-  },
-  pdfBadge: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  pdfBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: spacing.md,
   },
   statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.xs,
+    backgroundColor: colors.background,
+    borderRadius: 14,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    width: '100%',
+    marginBottom: spacing.lg,
   },
   statBox: {
     flex: 1,
@@ -351,37 +333,62 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: 1,
-    height: 35,
     backgroundColor: colors.border,
+    height: '70%',
+    alignSelf: 'center',
   },
   statBoxLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 4,
-    textAlign: 'center',
+    marginBottom: 3,
   },
   statBoxValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  filterSection: {
-    marginBottom: spacing.sm,
-  },
-  sectionHeading: {
     fontSize: 15,
     fontWeight: 'bold',
     color: colors.textPrimary,
-    marginBottom: spacing.xs,
+  },
+  statBoxHint: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  bigPdfButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.lg,
+    width: '100%',
+  },
+  bigPdfIcon: {
+    fontSize: 18,
+    marginRight: spacing.sm,
+  },
+  bigPdfText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  sectionHeader: {
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  sectionHeading: {
+    fontSize: 17,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
   },
   entryCard: {
     ...cardStyles,
     padding: spacing.md,
+    borderRadius: 14,
     marginBottom: spacing.sm,
   },
   entryCardUdhaar: {
     borderLeftWidth: 4,
-    borderLeftColor: colors.accent,
+    borderLeftColor: colors.danger,
   },
   entryCardWasool: {
     borderLeftWidth: 4,
@@ -389,66 +396,57 @@ const styles = StyleSheet.create({
   },
   entryRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  entryMainInfo: {
+  entryIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  entryIconText: {
+    fontSize: 22,
+  },
+  entryDetails: {
     flex: 1,
     paddingRight: spacing.sm,
   },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-    flexWrap: 'wrap',
-  },
-  typeBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  typeBadgeText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  dateText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  timeText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  itemNameText: {
-    fontSize: 15,
+  entryMainTitle: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: colors.textPrimary,
     marginBottom: 2,
   },
-  paymentText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.success,
-    marginBottom: 2,
-  },
-  rateCalculation: {
-    fontSize: 12,
+  entrySubcalc: {
+    fontSize: 13,
     color: colors.textSecondary,
     marginBottom: 2,
   },
-  noteText: {
+  entryNoteText: {
     fontSize: 12,
     color: colors.textSecondary,
     fontStyle: 'italic',
+    marginBottom: 2,
+  },
+  entryDateText: {
+    fontSize: 12,
+    color: '#8C8A84',
+    fontWeight: '500',
     marginTop: 2,
   },
   entryAmountCol: {
     alignItems: 'flex-end',
   },
-  amountText: {
-    fontSize: 16,
+  entryAmountText: {
+    fontSize: 17,
     fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  entryTypeLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
 });

@@ -1,5 +1,6 @@
 // src/screens/customerPortal/CustomerLoginScreen.js
-// Customer phone-only login screen (no OTP/password required)
+// Customer phone-only login screen — Redesigned for non-technical users
+// Big clear input, plain language, zero technical jargon
 
 import React, { useState } from 'react';
 import {
@@ -13,10 +14,10 @@ import {
   ScrollView,
   Modal,
   FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import Card from '../../components/Card';
-import PrimaryButton from '../../components/PrimaryButton';
-import { colors, typography, spacing, cardStyles } from '../../constants/theme';
+import { colors, spacing, cardStyles } from '../../constants/theme';
 import { useCustomerAuth } from '../../context/CustomerAuthContext';
 
 export default function CustomerLoginScreen({ navigation }) {
@@ -35,7 +36,7 @@ export default function CustomerLoginScreen({ navigation }) {
 
     const targetPhone = phone.trim();
     if (!targetPhone) {
-      setErrorMessage('Barah-e-karam apna phone number darj karein');
+      setErrorMessage('Pehle apna mobile number likhein');
       return;
     }
 
@@ -48,12 +49,11 @@ export default function CustomerLoginScreen({ navigation }) {
         setIsPickerVisible(true);
       } else {
         setIsPickerVisible(false);
-        // CustomerAuthContext updates customerToken, automatically transitioning root navigator
       }
     } catch (error) {
       const msg =
         error.message ||
-        'Ye number hamare kisi record mein nahi mila — dukaan wale se number confirm karein.';
+        'Ye number hamare paas nahi hai — dukaandaar se dobara number confirm kar lein.';
       setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
@@ -75,31 +75,32 @@ export default function CustomerLoginScreen({ navigation }) {
         keyboardShouldPersistTaps="handled"
       >
         <Card style={styles.card}>
-          {/* Brand & Portal Header */}
-          <View style={styles.headerBadge}>
-            <Text style={styles.badgeText}>Gahak Khata Portal</Text>
+          {/* Friendly Icon Header */}
+          <View style={styles.iconCircle}>
+            <Text style={styles.iconText}>🧾</Text>
           </View>
 
-          <Text style={styles.appTitle}>Daily Tally</Text>
           <Text style={styles.screenTitle}>Apna Hisab Dekhein</Text>
           <Text style={styles.screenSubtitle}>
-            Dukan par darj karwaya gaya apna mobile number likhein aur apna mukammal khata foran mulahiza karein.
+            Dukaan par diya gaya apna mobile number likhein aur apna pura khata check karein.
           </Text>
 
+          {/* Friendly Error Box */}
           {errorMessage ? (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>⚠️ {errorMessage}</Text>
             </View>
           ) : null}
 
-          {/* Phone Input */}
+          {/* Big Clear Phone Input */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Mobile Phone Number</Text>
-            <View style={styles.phoneInputRow}>
+            <Text style={styles.inputLabel}>Apna Mobile Number Likhein</Text>
+            <View style={styles.phoneInputBox}>
+              <Text style={styles.phoneIcon}>📞</Text>
               <TextInput
                 style={styles.phoneInput}
-                placeholder="03001234567"
-                placeholderTextColor={colors.textSecondary}
+                placeholder="0300 1234567"
+                placeholderTextColor="#A09E97"
                 keyboardType="phone-pad"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -111,41 +112,46 @@ export default function CustomerLoginScreen({ navigation }) {
                 editable={!isSubmitting}
               />
             </View>
-            <Text style={styles.hintText}>
-              Misal: 03001234567 ya 0300-1234567
-            </Text>
           </View>
 
-          {/* Submit Button */}
-          <PrimaryButton
-            title="Dekhein Apna Hisab →"
+          {/* Large Unmissable Submit Button */}
+          <TouchableOpacity
+            style={[styles.bigButton, isSubmitting && styles.buttonDisabled]}
             onPress={() => handleSubmit()}
-            isLoading={isSubmitting}
             disabled={isSubmitting}
-            style={styles.submitButton}
-          />
+            activeOpacity={0.85}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.bigButtonText}>Apna Hisab Dekhein →</Text>
+            )}
+          </TouchableOpacity>
 
-          {/* Privacy Note */}
-          <View style={styles.infoBox}>
-            <Text style={styles.infoText}>
-              🔒 Yeh sirf read-only portal hai. Aap apna purana aur naya hisab bila kisi rukawat dekh sakte hain.
+          {/* Reassuring Plain Note */}
+          <View style={styles.reassureRow}>
+            <Text style={styles.reassureText}>
+              🔒 Password ki zaroorat nahi hai. Aapka hisab foran khul jayega.
             </Text>
           </View>
 
-          {/* Back to Staff Login */}
-          <View style={styles.footerLinkContainer}>
+          {/* Big Clear Back Button */}
+          <View style={styles.footerContainer}>
             <TouchableOpacity
               onPress={() => navigation.navigate('Login')}
               disabled={isSubmitting}
               style={styles.backButton}
+              activeOpacity={0.7}
             >
-              <Text style={styles.backButtonText}>← Dukan Dar / Staff Login Par Wapis Jayein</Text>
+              <Text style={styles.backButtonText}>
+                ← Dukaan Dar / Staff Login Par Wapis Jayein
+              </Text>
             </TouchableOpacity>
           </View>
         </Card>
       </ScrollView>
 
-      {/* Multi-Shop Picker Modal */}
+      {/* Simplified Multi-Shop Picker Modal */}
       <Modal
         visible={isPickerVisible}
         transparent={true}
@@ -154,9 +160,9 @@ export default function CustomerLoginScreen({ navigation }) {
       >
         <View style={styles.modalOverlay}>
           <Card style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Dukaan Ka Intikhab Karein</Text>
+            <Text style={styles.modalTitle}>Aap Kis Dukaan Ka Hisab Dekhna Chahte Hain?</Text>
             <Text style={styles.modalSubtitle}>
-              Is phone number par ek se zyada dukaanon par khata darj hai. Aap kis dukaan ka hisab dekhna chahte hain?
+              Neechay di gayi dukaan par tap karein:
             </Text>
 
             <FlatList
@@ -165,27 +171,24 @@ export default function CustomerLoginScreen({ navigation }) {
               style={styles.modalList}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={styles.shopItem}
+                  style={styles.shopChoiceCard}
                   activeOpacity={0.8}
                   onPress={() => handleSelectShop(item.customerId)}
                 >
-                  <View style={styles.shopInfo}>
-                    <Text style={styles.shopName}>🏪 {item.shopName}</Text>
-                    <Text style={styles.customerName}>Gahak: {item.name}</Text>
-                    {item.shopPhone ? (
-                      <Text style={styles.shopPhone}>📞 {item.shopPhone}</Text>
-                    ) : null}
+                  <View style={styles.shopInfoWrap}>
+                    <Text style={styles.shopChoiceName}>🏪 {item.shopName}</Text>
+                    <Text style={styles.shopChoiceCustomer}>Gahak: {item.name}</Text>
                   </View>
-                  <Text style={styles.selectArrow}>Kholein →</Text>
+                  <Text style={styles.shopChoiceArrow}>Kholein →</Text>
                 </TouchableOpacity>
               )}
             />
 
             <TouchableOpacity
-              style={styles.modalCancelButton}
+              style={styles.modalCloseButton}
               onPress={() => setIsPickerVisible(false)}
             >
-              <Text style={styles.modalCancelText}>Cancel</Text>
+              <Text style={styles.modalCloseText}>Wapis Jayein</Text>
             </TouchableOpacity>
           </Card>
         </View>
@@ -207,180 +210,196 @@ const styles = StyleSheet.create({
   card: {
     ...cardStyles,
     padding: spacing.xl,
+    borderRadius: 20,
   },
-  headerBadge: {
-    alignSelf: 'flex-start',
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: spacing.xs,
-    borderRadius: 8,
-    marginBottom: spacing.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: spacing.md,
   },
-  badgeText: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  appTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: colors.primary,
-    marginBottom: spacing.xs,
+  iconText: {
+    fontSize: 32,
   },
   screenTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.textPrimary,
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: colors.primary,
+    textAlign: 'center',
     marginBottom: spacing.xs,
   },
   screenSubtitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: spacing.lg,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: spacing.xl,
   },
   errorContainer: {
     backgroundColor: colors.dangerLight,
     padding: spacing.md,
-    borderRadius: 8,
-    marginBottom: spacing.md,
+    borderRadius: 12,
+    marginBottom: spacing.lg,
     borderLeftWidth: 4,
     borderLeftColor: colors.danger,
   },
   errorText: {
     color: colors.danger,
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 20,
   },
   inputGroup: {
     marginBottom: spacing.lg,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
     color: colors.textPrimary,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.xs + 2,
   },
-  phoneInputRow: {
+  phoneInputBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    borderRadius: 10,
+    borderRadius: 14,
     backgroundColor: colors.cardBackground,
+    paddingHorizontal: spacing.md,
+  },
+  phoneIcon: {
+    fontSize: 20,
+    marginRight: spacing.sm,
   },
   phoneInput: {
     flex: 1,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    fontSize: 16,
+    paddingVertical: 16,
+    fontSize: 20,
+    fontWeight: 'bold',
     color: colors.textPrimary,
-    fontWeight: '500',
+    letterSpacing: 1,
   },
-  hintText: {
-    fontSize: 12,
-    color: colors.textSecondary,
+  bigButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginTop: spacing.xs,
-  },
-  submitButton: {
-    marginTop: spacing.xs,
-    marginBottom: spacing.md,
-  },
-  infoBox: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    padding: spacing.md,
     marginBottom: spacing.lg,
+    elevation: 2,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
   },
-  infoText: {
-    fontSize: 12,
-    color: '#475569',
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  bigButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  reassureRow: {
+    backgroundColor: '#F8FAF8',
+    padding: spacing.md,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: spacing.xl,
+  },
+  reassureText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    textAlign: 'center',
     lineHeight: 18,
   },
-  footerLinkContainer: {
-    alignItems: 'center',
-    paddingTop: spacing.sm,
+  footerContainer: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    paddingTop: spacing.md,
+    alignItems: 'center',
   },
   backButton: {
     paddingVertical: spacing.sm,
   },
   backButtonText: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.primary,
     fontWeight: '600',
   },
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     padding: spacing.lg,
   },
   modalCard: {
     ...cardStyles,
-    padding: spacing.lg,
+    padding: spacing.xl,
+    borderRadius: 20,
     maxHeight: '80%',
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     color: colors.textPrimary,
+    textAlign: 'center',
     marginBottom: spacing.xs,
   },
   modalSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
     color: colors.textSecondary,
-    lineHeight: 18,
-    marginBottom: spacing.md,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
   },
   modalList: {
     marginBottom: spacing.md,
   },
-  shopItem: {
+  shopChoiceCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: spacing.md,
-    borderRadius: 10,
-    backgroundColor: colors.background,
+    padding: spacing.lg,
+    borderRadius: 14,
+    backgroundColor: colors.primaryLight,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(15, 110, 86, 0.2)',
     marginBottom: spacing.sm,
   },
-  shopInfo: {
+  shopInfoWrap: {
     flex: 1,
   },
-  shopName: {
+  shopChoiceName: {
+    fontSize: 17,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  shopChoiceCustomer: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  shopChoiceArrow: {
     fontSize: 15,
     fontWeight: 'bold',
-    color: colors.textPrimary,
-    marginBottom: 2,
-  },
-  customerName: {
-    fontSize: 13,
     color: colors.primary,
-    fontWeight: '500',
-  },
-  shopPhone: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  selectArrow: {
-    fontSize: 13,
-    color: colors.primary,
-    fontWeight: 'bold',
     marginLeft: spacing.sm,
   },
-  modalCancelButton: {
+  modalCloseButton: {
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
   },
-  modalCancelText: {
-    fontSize: 14,
+  modalCloseText: {
+    fontSize: 15,
     color: colors.danger,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
 });

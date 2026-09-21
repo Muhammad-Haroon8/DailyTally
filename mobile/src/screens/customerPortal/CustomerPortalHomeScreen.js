@@ -1,13 +1,13 @@
 // src/screens/customerPortal/CustomerPortalHomeScreen.js
-// Customer Self-Service Portal - Read-Only Home Screen
-// Bank-statement style presentation of lifetime balance and active months
+// Customer Self-Service Portal - Month-wise Organization
+// Giant legible balance, paper-receipt aesthetic, month cards navigating to Month Detail
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  FlatList,
+  ScrollView,
   StyleSheet,
   RefreshControl,
   Alert,
@@ -17,7 +17,7 @@ import * as Sharing from 'expo-sharing';
 import Card from '../../components/Card';
 import EmptyState from '../../components/EmptyState';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { colors, typography, spacing, cardStyles } from '../../constants/theme';
+import { colors, spacing, cardStyles } from '../../constants/theme';
 import { useCustomerAuth } from '../../context/CustomerAuthContext';
 import {
   getCustomerPortalEntriesRequest,
@@ -64,11 +64,11 @@ export default function CustomerPortalHomeScreen({ navigation }) {
   const handleLogout = () => {
     Alert.alert(
       'Khata Band Karein',
-      'Kya aap Customer Portal se logout karna chahte hain?',
+      'Kya aap bahar nikalna chahte hain?',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Nahi', style: 'cancel' },
         {
-          text: 'Logout',
+          text: 'Haan, Bahar Niklein',
           style: 'destructive',
           onPress: async () => {
             await customerLogout();
@@ -110,11 +110,15 @@ export default function CustomerPortalHomeScreen({ navigation }) {
     return <LoadingSpinner text="Aapka hisab load ho raha hai..." />;
   }
 
+  // Filter months with entries, sorted newest first
+  const activeMonths = months
+    .filter((m) => m.entries && m.entries.length > 0)
+    .sort((a, b) => (b.monthKey || '').localeCompare(a.monthKey || ''));
+
   return (
     <View style={styles.container}>
-      <FlatList
-        data={months}
-        keyExtractor={(item) => item.monthKey}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -122,199 +126,222 @@ export default function CustomerPortalHomeScreen({ navigation }) {
             colors={[colors.primary]}
           />
         }
-        contentContainerStyle={styles.contentContainer}
-        ListHeaderComponent={
-          <View style={styles.headerContainer}>
-            {/* Top Bar: Customer Greeting & Logout */}
-            <View style={styles.topBar}>
-              <View style={styles.greetingWrap}>
-                <Text style={styles.salutation}>Assalam-o-Alaikum,</Text>
-                <Text style={styles.customerName}>{customer.name || 'Gahak'}</Text>
-                <Text style={styles.shopName}>
-                  🏪 {shop.name || customerUser?.shopName || 'Karobar Hisab Shop'}
-                </Text>
-              </View>
+      >
+        {/* Warm Conversational Header */}
+        <View style={styles.headerBar}>
+          <View style={styles.headerGreetingCol}>
+            <Text style={styles.greetingTitle}>
+              Assalam-o-Alaikum, {customer.name || 'Gahak'} 👋
+            </Text>
+            <Text style={styles.shopNameSubtitle}>
+              🏪 {shop.name || customerUser?.shopName || 'Karobar Hisab Shop'} ka hisab
+            </Text>
+          </View>
 
-              <TouchableOpacity
-                style={styles.logoutBadge}
-                onPress={handleLogout}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.logoutText}>Logout 🚪</Text>
-              </TouchableOpacity>
+          {/* Large Friendly Logout Button */}
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.logoutButtonText}>Bahar Niklein 🚪</Text>
+          </TouchableOpacity>
+        </View>
+
+        {errorMessage ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>⚠️ {errorMessage}</Text>
+          </View>
+        ) : null}
+
+        {/* HERO CARD: Giant Baqi Baqaya (Arm's-length dominant) */}
+        <Card style={styles.heroCard}>
+          <Text style={styles.heroLabel}>Aapka Kul Baqi Baqaya</Text>
+
+          {/* Massive 42px Amount Display */}
+          <Text
+            style={[
+              styles.heroAmount,
+              { color: isDebt ? colors.danger : colors.success },
+            ]}
+          >
+            Rs. {Math.abs(balance).toLocaleString()}
+          </Text>
+
+          {/* Conversational Status Explanation */}
+          <View
+            style={[
+              styles.statusBanner,
+              { backgroundColor: isDebt ? colors.dangerLight : colors.successLight },
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusBannerText,
+                { color: isDebt ? colors.danger : colors.success },
+              ]}
+            >
+              {isDebt
+                ? '⚠️ Yeh raqam aap ne dukaan par ada karni hai'
+                : isSettled
+                ? '✅ Shukriya! Aapka koi baqaya nahi hai'
+                : '★ Aapke paise dukaan par advance jama hain'}
+            </Text>
+          </View>
+
+          {/* Secondary Context: Kitna Liya vs Kitna Diya */}
+          <View style={styles.contextRow}>
+            <View style={styles.contextCol}>
+              <Text style={styles.contextLabel}>Kitna Samaan Liya:</Text>
+              <Text style={[styles.contextValue, { color: colors.accent }]}>
+                Rs. {(customer.totalUdhaar || 0).toLocaleString()}
+              </Text>
+              <Text style={styles.contextHint}>(Kul Udhaar)</Text>
             </View>
 
-            {errorMessage ? (
-              <View style={styles.errorCard}>
-                <Text style={styles.errorText}>⚠️ {errorMessage}</Text>
-              </View>
-            ) : null}
+            <View style={styles.contextDivider} />
 
-            {/* Official Bank-Statement Style Summary Card */}
-            <Card style={styles.statementCard}>
-              <View style={styles.statementBadgeRow}>
-                <View style={styles.officialTag}>
-                  <Text style={styles.officialTagText}>OFFICIAL HISAB STATEMENT</Text>
-                </View>
-                <Text style={styles.phoneTag}>📞 {customer.phone || customerUser?.phone}</Text>
-              </View>
-
-              {/* Big Hero Balance Display */}
-              <View style={styles.balanceSection}>
-                <Text style={styles.balanceLabel}>Moujooda Baqi Baqaya (Current Balance)</Text>
-                <Text
-                  style={[
-                    styles.balanceAmount,
-                    { color: isDebt ? colors.danger : colors.success },
-                  ]}
-                >
-                  Rs. {Math.abs(balance).toLocaleString()}
-                </Text>
-                <View
-                  style={[
-                    styles.statusPill,
-                    { backgroundColor: isDebt ? colors.dangerLight : colors.successLight },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusPillText,
-                      { color: isDebt ? colors.danger : colors.success },
-                    ]}
-                  >
-                    {isDebt
-                      ? '● Raqam Dukan Dar Ko Ada Karni Hai (Payable)'
-                      : isSettled
-                      ? '✓ Tamam Hisab Chukta Hai (Nil Balance)'
-                      : '★ Advance Jama Hai'}
-                  </Text>
-                </View>
-              </View>
-
-              {/* 2-Column Ledger Summary (Kul Udhaar vs Kul Wasool) */}
-              <View style={styles.metricRow}>
-                <View style={[styles.metricBox, styles.metricUdhaar]}>
-                  <Text style={styles.metricLabel}>Kul Kharedari (Udhaar)</Text>
-                  <Text style={[styles.metricValue, { color: colors.accent }]}>
-                    Rs. {(customer.totalUdhaar || 0).toLocaleString()}
-                  </Text>
-                  <Text style={styles.metricSub}>A to Z kul samaan</Text>
-                </View>
-
-                <View style={styles.metricDivider} />
-
-                <View style={[styles.metricBox, styles.metricWasool]}>
-                  <Text style={styles.metricLabel}>Kul Wasool (Adaigi)</Text>
-                  <Text style={[styles.metricValue, { color: colors.success }]}>
-                    Rs. {(customer.totalWasool || 0).toLocaleString()}
-                  </Text>
-                  <Text style={styles.metricSub}>A to Z kul adaigi</Text>
-                </View>
-              </View>
-
-              {/* 1-Tap Statement PDF Download */}
-              <TouchableOpacity
-                style={styles.pdfDownloadButton}
-                onPress={handleDownloadAllTimePdf}
-                disabled={isDownloadingPdf}
-                activeOpacity={0.8}
-              >
-                {isDownloadingPdf ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Text style={styles.pdfIcon}>📄</Text>
-                    <Text style={styles.pdfButtonText}>
-                      Mukammal Statement Download Karein (PDF)
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </Card>
-
-            {/* Months Section Header */}
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>📅 Mahana Hisab (Monthly Breakdown)</Text>
-              <Text style={styles.sectionSubtitle}>
-                Tafseelat dekhne ke liye kisi bhi mahine par tap karein
+            <View style={styles.contextCol}>
+              <Text style={styles.contextLabel}>Kitne Paise Diye:</Text>
+              <Text style={[styles.contextValue, { color: colors.success }]}>
+                Rs. {(customer.totalWasool || 0).toLocaleString()}
               </Text>
+              <Text style={styles.contextHint}>(Kul Wasool)</Text>
             </View>
           </View>
-        }
-        renderItem={({ item }) => (
+
+          {/* Big Obvious PDF Download Button */}
           <TouchableOpacity
-            style={styles.monthCardTouchable}
+            style={styles.bigPdfButton}
+            onPress={handleDownloadAllTimePdf}
+            disabled={isDownloadingPdf}
             activeOpacity={0.85}
-            onPress={() =>
-              navigation.navigate('CustomerPortalMonthDetail', {
-                monthKey: item.monthKey,
-                monthLabel: item.monthLabel,
-                monthData: item,
-                customerName: customer.name,
-                shopName: shop.name || customerUser?.shopName,
-              })
-            }
           >
-            <Card style={styles.monthCard}>
-              <View style={styles.monthHeaderRow}>
-                <View>
-                  <Text style={styles.monthLabelText}>{item.monthLabel}</Text>
-                  <Text style={styles.monthSubText}>
-                    {item.entries?.length || 0} transactions
-                  </Text>
-                </View>
-                <View style={styles.viewBadge}>
-                  <Text style={styles.viewBadgeText}>Tafseel Dekhein →</Text>
-                </View>
-              </View>
-
-              <View style={styles.monthStatsRow}>
-                <View style={styles.monthStatItem}>
-                  <Text style={styles.statLabel}>Pichla Baqaya:</Text>
-                  <Text style={styles.statValue}>
-                    Rs. {(item.openingBalance || 0).toLocaleString()}
-                  </Text>
-                </View>
-
-                <View style={styles.monthStatItem}>
-                  <Text style={styles.statLabel}>Mahine Ka Net:</Text>
-                  <Text
-                    style={[
-                      styles.statValue,
-                      { color: item.monthNet > 0 ? colors.accent : colors.success },
-                    ]}
-                  >
-                    {item.monthNet > 0 ? '+' : ''}
-                    Rs. {(item.monthNet || 0).toLocaleString()}
-                  </Text>
-                </View>
-
-                <View style={styles.monthStatItem}>
-                  <Text style={styles.statLabel}>Aakhri Baqaya:</Text>
-                  <Text
-                    style={[
-                      styles.statValue,
-                      {
-                        fontWeight: 'bold',
-                        color: item.closingBalance > 0 ? colors.danger : colors.success,
-                      },
-                    ]}
-                  >
-                    Rs. {(item.closingBalance || 0).toLocaleString()}
-                  </Text>
-                </View>
-              </View>
-            </Card>
+            {isDownloadingPdf ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={styles.bigPdfIcon}>📄</Text>
+                <Text style={styles.bigPdfText}>
+                  Apna Hisab PDF Mein Download Karein
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
-        )}
-        ListEmptyComponent={
+        </Card>
+
+        {/* MONTH-WISE ORGANIZATION LIST */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionHeading}>🗓️ Aapka Mahana Khata</Text>
+          <Text style={styles.sectionSubtitle}>
+            Kisi bhi mahine ka tafseeli hisab dekhne ke liye us par tap karein:
+          </Text>
+        </View>
+
+        {activeMonths.length === 0 ? (
           <EmptyState
-            icon="📋"
-            title="Abhi Koi Hisab Maujood Nahi"
-            description="Is khate me abhi tak koi kharedari ya wasooli darj nahi hui hai."
+            icon="🧾"
+            title="Abhi Koi Hisab Darj Nahi Hua"
+            description="Jab dukaan se koi samaan ya payment darj hogi, to yahan mahana hisab show hoga."
           />
-        }
-      />
+        ) : (
+          activeMonths.map((month) => {
+            const isMonthDebt = month.monthNet > 0;
+            const entriesCount = month.entries?.length || 0;
+
+            return (
+              <TouchableOpacity
+                key={month.monthKey}
+                style={styles.monthCardTouchable}
+                activeOpacity={0.8}
+                onPress={() =>
+                  navigation.navigate('CustomerPortalMonthDetail', {
+                    monthKey: month.monthKey,
+                    monthLabel: month.monthLabel,
+                    monthData: month,
+                    customerName: customer.name,
+                    shopName: shop.name,
+                  })
+                }
+              >
+                <Card style={styles.monthCard}>
+                  {/* Month Header Row */}
+                  <View style={styles.monthCardHeader}>
+                    <View style={styles.monthCardTitleCol}>
+                      <Text style={styles.monthCardTitle}>
+                        🗓️ {month.monthLabel}
+                      </Text>
+                      <Text style={styles.monthCardEntryCount}>
+                        {entriesCount} {entriesCount === 1 ? 'tafseel' : 'tafseelat'}
+                      </Text>
+                    </View>
+
+                    <View style={styles.monthCardArrowBadge}>
+                      <Text style={styles.monthCardArrowText}>Kholein →</Text>
+                    </View>
+                  </View>
+
+                  {/* Month Summary Metrics Row */}
+                  <View style={styles.monthMetricsRow}>
+                    <View style={styles.monthMetricBox}>
+                      <Text style={styles.monthMetricLabel}>Is Mahine Ka Net:</Text>
+                      <Text
+                        style={[
+                          styles.monthMetricValue,
+                          { color: isMonthDebt ? colors.danger : colors.success },
+                        ]}
+                      >
+                        {month.monthNet > 0
+                          ? `+ Rs. ${month.monthNet.toLocaleString()}`
+                          : month.monthNet < 0
+                          ? `- Rs. ${Math.abs(month.monthNet).toLocaleString()}`
+                          : 'Rs. 0'}
+                      </Text>
+                      <Text style={styles.monthMetricHint}>
+                        {month.monthNet > 0 ? '(Udhaar Liya)' : month.monthNet < 0 ? '(Wasool Diya)' : '(Barabar)'}
+                      </Text>
+                    </View>
+
+                    <View style={styles.monthMetricDivider} />
+
+                    <View style={styles.monthMetricBox}>
+                      <Text style={styles.monthMetricLabel}>Aakhri Baqaya:</Text>
+                      <Text
+                        style={[
+                          styles.monthMetricValue,
+                          {
+                            fontWeight: 'bold',
+                            color: month.closingBalance > 0 ? colors.danger : colors.success,
+                          },
+                        ]}
+                      >
+                        Rs. {(month.closingBalance || 0).toLocaleString()}
+                      </Text>
+                      <Text style={styles.monthMetricHint}>
+                        {month.closingBalance > 0 ? '(Baqi Dena Hai)' : '(Mukammal Ada)'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Bottom Friendly Prompt */}
+                  <View style={styles.monthCardFooter}>
+                    <Text style={styles.monthCardFooterText}>
+                      Haftawar hisab aur rozaana tafseel dekhne ke liye tap karein ➔
+                    </Text>
+                  </View>
+                </Card>
+              </TouchableOpacity>
+            );
+          })
+        )}
+
+        {/* Reassuring Footer */}
+        <View style={styles.reassureFooter}>
+          <Text style={styles.reassureFooterText}>
+            ✓ Yeh hisab dukan dar ke computer se mutabiq hai. Agar koi sawal ho to dukaan par rabta karein.
+          </Text>
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -324,41 +351,33 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  contentContainer: {
+  scrollContent: {
     padding: spacing.md,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xxl + 20,
   },
-  headerContainer: {
-    marginBottom: spacing.md,
-  },
-  topBar: {
+  headerBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: spacing.md,
     paddingTop: spacing.xs,
   },
-  greetingWrap: {
+  headerGreetingCol: {
     flex: 1,
-    marginRight: spacing.md,
+    marginRight: spacing.sm,
   },
-  salutation: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  customerName: {
+  greetingTitle: {
     fontSize: 22,
     fontWeight: 'bold',
     color: colors.primary,
-    marginVertical: 2,
+    marginBottom: 2,
   },
-  shopName: {
-    fontSize: 13,
+  shopNameSubtitle: {
+    fontSize: 14,
     color: colors.textSecondary,
     fontWeight: '500',
   },
-  logoutBadge: {
+  logoutButton: {
     backgroundColor: colors.cardBackground,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -366,200 +385,226 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  logoutText: {
+  logoutButtonText: {
     fontSize: 13,
     color: colors.danger,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
-  errorCard: {
+  errorBox: {
     backgroundColor: colors.dangerLight,
     padding: spacing.md,
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: spacing.md,
     borderLeftWidth: 4,
     borderLeftColor: colors.danger,
   },
   errorText: {
     color: colors.danger,
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: 14,
+    fontWeight: '600',
   },
-  statementCard: {
+  // HERO CARD: Giant Baqi Baqaya
+  heroCard: {
     ...cardStyles,
-    padding: spacing.lg,
-    borderColor: 'rgba(15, 110, 86, 0.25)',
+    padding: spacing.xl,
+    borderRadius: 20,
+    borderColor: 'rgba(15, 110, 86, 0.2)',
     borderWidth: 1.5,
+    marginBottom: spacing.xl,
+    alignItems: 'center',
+  },
+  heroLabel: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  heroAmount: {
+    fontSize: 42,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+    marginVertical: 4,
+  },
+  statusBanner: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  statusBannerText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  // Secondary Context
+  contextRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.background,
+    borderRadius: 14,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    width: '100%',
     marginBottom: spacing.lg,
   },
-  statementBadgeRow: {
+  contextCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  contextDivider: {
+    width: 1,
+    backgroundColor: colors.border,
+    height: '70%',
+    alignSelf: 'center',
+  },
+  contextLabel: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: 3,
+  },
+  contextValue: {
+    fontSize: 17,
+    fontWeight: 'bold',
+  },
+  contextHint: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  bigPdfButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 15,
+    paddingHorizontal: spacing.lg,
+    width: '100%',
+    elevation: 2,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  bigPdfIcon: {
+    fontSize: 18,
+    marginRight: spacing.sm,
+  },
+  bigPdfText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  // MONTH LIST SECTION
+  sectionHeader: {
+    marginBottom: spacing.md,
+  },
+  sectionHeading: {
+    fontSize: 19,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  monthCardTouchable: {
+    marginBottom: spacing.md,
+  },
+  monthCard: {
+    ...cardStyles,
+    padding: spacing.lg,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(15, 110, 86, 0.15)',
+  },
+  monthCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.md,
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: '#F1F0EC',
   },
-  officialTag: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: 4,
+  monthCardTitleCol: {
+    flex: 1,
   },
-  officialTagText: {
-    color: '#FFFFFF',
-    fontSize: 10,
+  monthCardTitle: {
+    fontSize: 19,
     fontWeight: 'bold',
-    letterSpacing: 0.5,
+    color: colors.primary,
+    marginBottom: 2,
   },
-  phoneTag: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  balanceSection: {
-    alignItems: 'center',
-    marginVertical: spacing.sm,
-  },
-  balanceLabel: {
+  monthCardEntryCount: {
     fontSize: 13,
     color: colors.textSecondary,
-    fontWeight: '500',
-    marginBottom: 4,
   },
-  balanceAmount: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  statusPill: {
+  monthCardArrowBadge: {
+    backgroundColor: colors.primaryLight,
     paddingHorizontal: spacing.md,
-    paddingVertical: 4,
-    borderRadius: 20,
-    marginTop: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
-  statusPillText: {
-    fontSize: 12,
-    fontWeight: '600',
+  monthCardArrowText: {
+    fontSize: 13,
+    color: colors.primary,
+    fontWeight: 'bold',
   },
-  metricRow: {
+  monthMetricsRow: {
     flexDirection: 'row',
     backgroundColor: colors.background,
     borderRadius: 12,
     paddingVertical: spacing.md,
-    marginTop: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  metricBox: {
-    flex: 1,
-    alignItems: 'center',
     paddingHorizontal: spacing.sm,
-  },
-  metricDivider: {
-    width: 1,
-    backgroundColor: colors.border,
-    height: '80%',
-    alignSelf: 'center',
-  },
-  metricLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  metricValue: {
-    fontSize: 17,
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  metricSub: {
-    fontSize: 10,
-    color: colors.textSecondary,
-  },
-  pdfDownloadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingVertical: spacing.md,
-    marginTop: spacing.sm,
-  },
-  pdfIcon: {
-    fontSize: 16,
-    marginRight: spacing.sm,
-  },
-  pdfButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
-  sectionHeader: {
-    marginTop: spacing.sm,
     marginBottom: spacing.sm,
   },
-  sectionTitle: {
+  monthMetricBox: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  monthMetricDivider: {
+    width: 1,
+    backgroundColor: colors.border,
+    height: '70%',
+    alignSelf: 'center',
+  },
+  monthMetricLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 3,
+  },
+  monthMetricValue: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: colors.textPrimary,
   },
-  sectionSubtitle: {
-    fontSize: 12,
+  monthMetricHint: {
+    fontSize: 11,
     color: colors.textSecondary,
     marginTop: 2,
   },
-  monthCardTouchable: {
-    marginBottom: spacing.sm,
-  },
-  monthCard: {
-    ...cardStyles,
-    padding: spacing.md,
-  },
-  monthHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  monthCardFooter: {
     alignItems: 'center',
-    marginBottom: spacing.sm,
-    paddingBottom: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingTop: spacing.xs,
   },
-  monthLabelText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  monthSubText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 1,
-  },
-  viewBadge: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  viewBadgeText: {
+  monthCardFooterText: {
     fontSize: 12,
     color: colors.primary,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
-  monthStatsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 4,
+  reassureFooter: {
+    backgroundColor: '#F8FAF8',
+    borderRadius: 12,
+    padding: spacing.md,
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  monthStatItem: {
-    flex: 1,
-  },
-  statLabel: {
-    fontSize: 11,
+  reassureFooterText: {
+    fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 2,
-  },
-  statValue: {
-    fontSize: 13,
-    color: colors.textPrimary,
-    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

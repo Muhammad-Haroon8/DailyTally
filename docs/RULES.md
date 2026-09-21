@@ -31,6 +31,17 @@
 - Always load from local cache (`storageAdapter.js` / `localCache.js`) first, then revalidate in the background.
 - Keep the custom Expo FileSystem storage adapter intact; never introduce unbundled native packages that could crash Expo Go.
 
+### 1.5. Business Week Convention (Starts on Thursday)
+- **Thursday-to-Wednesday Trading Week**: In accordance with the business's real trading cycles, a "week" runs from **Thursday through Wednesday** (7 days, Thursday=Day 1 through Wednesday=Day 7).
+- **Week Boundaries Algorithm**:
+  - The first week of a month is partial if the 1st of the month is not a Thursday (runs from the 1st through the day before the first Thursday).
+  - Subsequent weeks are full Thursday-to-Wednesday 7-day blocks.
+  - The last week of a month is partial if the month ends before Wednesday.
+- **Single Source of Truth**: All week calculations, summary groupings, and fallback parameters must strictly use the shared utilities:
+  - Frontend: `mobile/src/utils/weekBoundaries.js` (`getWeeksInMonth`, `findWeekForDay`, `getWeekFallback`).
+  - Backend: `backend/utils/weekBoundaries.js`.
+- Never use Monday-start weeks or generic day-of-month (1-7, 8-14) chunking in any screen.
+
 ---
 
 ## 2. Technology & Coding Standards
