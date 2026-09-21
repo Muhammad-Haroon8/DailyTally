@@ -15,6 +15,11 @@ dist/
 web-build/
 expo-env.d.ts
 
+# Next.js / Web build artifacts
+.next/
+admin-web/.next/
+out/
+
 # Native builds
 mobile/android/
 mobile/ios/
